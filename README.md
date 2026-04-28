@@ -7,6 +7,7 @@ A lightweight **Go + Vue 3** web application for browsing, uploading and downloa
 - 📁 Browse buckets and folders in a clean file-browser UI
 - ⬆️ **Streaming upload** of large files – files are piped directly from the browser to S3 without buffering to disk
 - ⬇️ **Streaming download** of large files – objects are piped from S3 straight to the browser
+- 🔗 **Presigned URLs** – generate time-limited download or upload links shareable without credentials (configurable expiry, default 24 h, max 7 days)
 - 🪣 Create / delete buckets
 - 🗑️ Delete individual files or entire folders (recursive)
 - 🐳 One-command **Docker Compose** deployment (MinIO + backend + frontend)
@@ -98,6 +99,43 @@ npm run dev
 | GET | `/api/v1/objects/:bucket/*key` | Download object (streaming) |
 | POST | `/api/v1/objects/:bucket?prefix=` | Upload files (multipart streaming) |
 | DELETE | `/api/v1/objects/:bucket/*key` | Delete object or folder (recursive) |
+| GET | `/api/v1/presign/download/:bucket/*key` | Generate presigned download URL |
+| GET | `/api/v1/presign/upload/:bucket/*key` | Generate presigned upload URL |
+
+### Presigned URL endpoints
+
+Both presigned endpoints accept an optional `expiry` query parameter (seconds).
+
+| Parameter | Default | Maximum | Description |
+|---|---|---|---|
+| `expiry` | `86400` (24 h) | `604800` (7 days) | Link validity period in seconds |
+
+**Download link** – returns a presigned `GET` URL that anyone can use to download the object without credentials:
+
+```
+GET /api/v1/presign/download/:bucket/*key?expiry=3600
+```
+
+```json
+{
+  "url": "https://…/bucket/key?X-Amz-Expires=3600&…",
+  "expires_in": 3600
+}
+```
+
+**Upload link** – returns a presigned `PUT` URL that allows uploading to the specified key without credentials:
+
+```
+GET /api/v1/presign/upload/:bucket/*key?expiry=3600
+```
+
+```json
+{
+  "url": "https://…/bucket/key?X-Amz-Expires=3600&…",
+  "key": "path/to/object",
+  "expires_in": 3600
+}
+```
 
 ## License
 
