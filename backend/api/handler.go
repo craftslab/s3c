@@ -18,6 +18,7 @@ import (
 // Handler holds the dependencies for all HTTP handlers.
 type Handler struct {
 	client *storage.Client
+	publicBaseURL string
 }
 
 // ----- bucket handlers -----
@@ -227,6 +228,25 @@ func parseExpiry(c *gin.Context) time.Duration {
 	return d
 }
 
+func (h *Handler) resolvePublicBaseURL(c *gin.Context) string {
+	if strings.TrimSpace(h.publicBaseURL) != "" {
+		return strings.TrimRight(strings.TrimSpace(h.publicBaseURL), "/")
+	}
+	// Fall back to request headers (when behind nginx).
+	scheme := c.GetHeader("X-Forwarded-Proto")
+	if scheme == "" {
+		scheme = "http"
+	}
+	host := c.GetHeader("X-Forwarded-Host")
+	if host == "" {
+		host = c.Request.Host
+	}
+	if host == "" {
+		return ""
+	}
+	return scheme + "://" + host
+}
+
 // GenerateDownloadLink returns a presigned GET URL for a specific object.
 // Query param: expiry (seconds, default 86400, max 604800).
 func (h *Handler) GenerateDownloadLink(c *gin.Context) {
@@ -238,6 +258,14 @@ func (h *Handler) GenerateDownloadLink(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Return a shareable proxy URL under the app's public base, so the client
+	// doesn't need direct access to the S3 endpoint and we don't expose it.
+	base := h.resolvePublicBaseURL(c)
+	if base != "" {
+		filename := path.Base(key)
+		u = base + "/api/download?url=" + url.QueryEscape(u) + "&filename=" + url.QueryEscape(filename)
 	}
 
 	c.JSON(http.StatusOK, gin.H{

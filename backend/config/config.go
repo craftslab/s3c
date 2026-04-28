@@ -7,6 +7,7 @@ type Config struct {
 	ListenAddr  string
 	S3Endpoint  string
 	S3PublicURL string
+	PublicBaseURL string
 	S3AccessKey string
 	S3SecretKey string
 	S3UseSSL    bool
@@ -21,6 +22,10 @@ func Load() *Config {
 		// S3PublicURL is the externally reachable base URL used in returned presigned links.
 		// Example: https://s3.example.com
 		S3PublicURL: getEnv("S3_PUBLIC_URL", ""),
+		// PublicBaseURL is the externally reachable base URL of this app (nginx entry),
+		// used to construct shareable proxy links like /api/download.
+		// Example: http://47.88.100.1:3000 or https://s3c.example.com
+		PublicBaseURL: getEnv("PUBLIC_BASE_URL", ""),
 		S3AccessKey: getEnv("S3_ACCESS_KEY", "minioadmin"),
 		S3SecretKey: getEnv("S3_SECRET_KEY", "minioadmin"),
 		S3UseSSL:    getEnv("S3_USE_SSL", "false") == "true",

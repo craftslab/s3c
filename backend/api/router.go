@@ -1,13 +1,14 @@
 package api
 
 import (
+	"github.com/craftslab/s3c/backend/config"
 	"github.com/craftslab/s3c/backend/storage"
 	cors "github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
 // NewRouter constructs the gin engine with all routes registered.
-func NewRouter(client *storage.Client) *gin.Engine {
+func NewRouter(client *storage.Client, cfg *config.Config) *gin.Engine {
 	r := gin.Default()
 
 	r.Use(cors.New(cors.Config{
@@ -18,7 +19,7 @@ func NewRouter(client *storage.Client) *gin.Engine {
 		AllowCredentials: false,
 	}))
 
-	h := &Handler{client: client}
+	h := &Handler{client: client, publicBaseURL: cfg.PublicBaseURL}
 
 	// Standalone streaming proxy endpoints used by the shared /upload page.
 	// These routes are intentionally NOT under /api so the nginx frontend can

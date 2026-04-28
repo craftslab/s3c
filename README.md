@@ -84,6 +84,7 @@ npm run dev
 | `LISTEN_ADDR` | `:8080` | Backend listen address |
 | `S3_ENDPOINT` | `localhost:9000` | S3/MinIO endpoint (host:port) |
 | `S3_PUBLIC_URL` | *(empty)* | Public base URL used in returned presigned links (e.g. `https://s3.example.com`) |
+| `PUBLIC_BASE_URL` | *(empty)* | Public base URL of the S3C web entry used to build shareable proxy download links (e.g. `https://s3c.example.com`) |
 | `S3_ACCESS_KEY` | `minioadmin` | S3 access key |
 | `S3_SECRET_KEY` | `minioadmin` | S3 secret key |
 | `S3_USE_SSL` | `false` | Use HTTPS for S3 connection |
