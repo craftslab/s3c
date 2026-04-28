@@ -138,7 +138,8 @@ function uploadWithProgress(url, file, filename) {
     const xhr = new XMLHttpRequest()
     const qs = new URLSearchParams({ url })
     if (filename) qs.set('filename', filename)
-    xhr.open('POST', `/upload?${qs.toString()}`)
+    // POST to /upload/ so nginx can proxy it while keeping GET /upload as SPA route.
+    xhr.open('POST', `/upload/?${qs.toString()}`)
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
         progress.value = Math.round((e.loaded / e.total) * 100)
