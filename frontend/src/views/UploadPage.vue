@@ -138,8 +138,8 @@ function uploadWithProgress(url, file, filename) {
     const xhr = new XMLHttpRequest()
     const qs = new URLSearchParams({ url })
     if (filename) qs.set('filename', filename)
-    // POST to /upload/ so nginx can proxy it while keeping GET /upload as SPA route.
-    xhr.open('POST', `/upload/?${qs.toString()}`)
+    // Use /api proxy route to avoid special-case nginx handling of /upload.
+    xhr.open('POST', `/api/upload?${qs.toString()}`)
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
         progress.value = Math.round((e.loaded / e.total) * 100)
@@ -155,9 +155,8 @@ function uploadWithProgress(url, file, filename) {
       }
     }
     xhr.onerror = () => reject(new Error('Network error during upload'))
-    const form = new FormData()
-    form.append('file', file, file.name)
-    xhr.send(form)
+    if (file.type) xhr.setRequestHeader('Content-Type', file.type)
+    xhr.send(file)
   })
 }
 

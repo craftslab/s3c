@@ -288,6 +288,12 @@ func parseRemoteURL(raw string) (*url.URL, error) {
 // ProxyUpload accepts a browser upload and streams the file to a presigned PUT URL.
 // Data flows client → this server → remote URL without buffering the whole file.
 func (h *Handler) ProxyUpload(c *gin.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid upload body: %v", r)})
+		}
+	}()
+
 	remoteRaw := c.Query("url")
 	remote, err := parseRemoteURL(remoteRaw)
 	if err != nil {
@@ -295,39 +301,49 @@ func (h *Handler) ProxyUpload(c *gin.Context) {
 		return
 	}
 
-	mr, err := c.Request.MultipartReader()
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid multipart request: " + err.Error()})
-		return
-	}
+	var src io.ReadCloser = c.Request.Body
+	var contentType = c.Request.Header.Get("Content-Type")
 
-	// Use the first file part.
-	var part *multipart.Part
-	for {
-		p, perr := mr.NextPart()
-		if perr == io.EOF {
-			break
-		}
-		if perr != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": perr.Error()})
+	// If the client sent multipart/form-data, extract the first file part.
+	// Otherwise treat the request body as the raw file stream.
+	if strings.HasPrefix(strings.ToLower(contentType), "multipart/form-data") {
+		mr, mErr := c.Request.MultipartReader()
+		if mErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid multipart request: " + mErr.Error()})
 			return
 		}
-		if p.FileName() == "" {
-			continue
+
+		var part *multipart.Part
+		for {
+			p, perr := mr.NextPart()
+			if perr == io.EOF {
+				break
+			}
+			if perr != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": perr.Error()})
+				return
+			}
+			if p.FileName() == "" {
+				continue
+			}
+			part = p
+			break
 		}
-		part = p
-		break
+		if part == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "no file found in request"})
+			return
+		}
+		src = part
+		if ct := part.Header.Get("Content-Type"); ct != "" {
+			contentType = ct
+		}
+		defer part.Close()
 	}
-	if part == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "no file found in request"})
-		return
-	}
-	defer part.Close()
 
 	pr, pw := io.Pipe()
 	copyErrCh := make(chan error, 1)
 	go func() {
-		_, copyErr := io.Copy(pw, part)
+		_, copyErr := io.Copy(pw, src)
 		_ = pw.CloseWithError(copyErr)
 		copyErrCh <- copyErr
 	}()
@@ -339,8 +355,11 @@ func (h *Handler) ProxyUpload(c *gin.Context) {
 	}
 
 	// Keep headers minimal for presigned URLs.
-	if ct := part.Header.Get("Content-Type"); ct != "" {
-		req.Header.Set("Content-Type", ct)
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	if c.Request.ContentLength > 0 {
+		req.ContentLength = c.Request.ContentLength
 	}
 
 	resp, err := http.DefaultClient.Do(req)

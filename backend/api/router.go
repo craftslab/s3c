@@ -25,6 +25,10 @@ func NewRouter(client *storage.Client) *gin.Engine {
 	// expose a simple same-origin URL: http://<host>:3000/upload?url=... .
 	r.POST("/upload", h.ProxyUpload)
 	r.GET("/download", h.ProxyDownload)
+	// Also expose under /api/* so we can rely on the existing nginx /api proxy
+	// settings (no body limits, buffering off) and avoid fragile routing rules.
+	r.POST("/api/upload", h.ProxyUpload)
+	r.GET("/api/download", h.ProxyDownload)
 
 	v1 := r.Group("/api/v1")
 	{
