@@ -120,7 +120,7 @@ async function startUpload() {
   errorMsg.value = ''
 
   try {
-    await uploadWithProgress(presignedUrl.value, selectedFile.value)
+    await uploadWithProgress(presignedUrl.value, selectedFile.value, targetFilename.value)
     done.value = true
   } catch (e) {
     if (e.status === 403 || e.status === 401) {
@@ -133,10 +133,12 @@ async function startUpload() {
   }
 }
 
-function uploadWithProgress(url, file) {
+function uploadWithProgress(url, file, filename) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
-    xhr.open('PUT', url)
+    const qs = new URLSearchParams({ url })
+    if (filename) qs.set('filename', filename)
+    xhr.open('POST', `/upload?${qs.toString()}`)
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
         progress.value = Math.round((e.loaded / e.total) * 100)
@@ -152,7 +154,9 @@ function uploadWithProgress(url, file) {
       }
     }
     xhr.onerror = () => reject(new Error('Network error during upload'))
-    xhr.send(file)
+    const form = new FormData()
+    form.append('file', file, file.name)
+    xhr.send(form)
   })
 }
 

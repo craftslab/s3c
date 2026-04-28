@@ -3,7 +3,9 @@ package api
 import (
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"net/url"
 	"path"
 	"strconv"
 	"strings"
@@ -262,4 +264,155 @@ func (h *Handler) GenerateUploadLink(c *gin.Context) {
 		"key":        key,
 		"expires_in": int64(expiry.Seconds()),
 	})
+}
+
+// ----- streaming proxy handlers (for shared links) -----
+
+func parseRemoteURL(raw string) (*url.URL, error) {
+	if raw == "" {
+		return nil, fmt.Errorf("missing url")
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return nil, err
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return nil, fmt.Errorf("unsupported url scheme")
+	}
+	if u.Host == "" {
+		return nil, fmt.Errorf("invalid url host")
+	}
+	return u, nil
+}
+
+// ProxyUpload accepts a browser upload and streams the file to a presigned PUT URL.
+// Data flows client → this server → remote URL without buffering the whole file.
+func (h *Handler) ProxyUpload(c *gin.Context) {
+	remoteRaw := c.Query("url")
+	remote, err := parseRemoteURL(remoteRaw)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	mr, err := c.Request.MultipartReader()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid multipart request: " + err.Error()})
+		return
+	}
+
+	// Use the first file part.
+	var part *multipart.Part
+	for {
+		p, perr := mr.NextPart()
+		if perr == io.EOF {
+			break
+		}
+		if perr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": perr.Error()})
+			return
+		}
+		if p.FileName() == "" {
+			continue
+		}
+		part = p
+		break
+	}
+	if part == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no file found in request"})
+		return
+	}
+	defer part.Close()
+
+	pr, pw := io.Pipe()
+	copyErrCh := make(chan error, 1)
+	go func() {
+		_, copyErr := io.Copy(pw, part)
+		_ = pw.CloseWithError(copyErr)
+		copyErrCh <- copyErr
+	}()
+
+	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPut, remote.String(), pr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Keep headers minimal for presigned URLs.
+	if ct := part.Header.Get("Content-Type"); ct != "" {
+		req.Header.Set("Content-Type", ct)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	defer resp.Body.Close()
+
+	// Drain a small portion for error visibility without buffering large payloads.
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		msg := strings.TrimSpace(string(b))
+		if msg == "" {
+			msg = resp.Status
+		}
+		c.JSON(resp.StatusCode, gin.H{"error": msg})
+		return
+	}
+
+	// Ensure the upstream upload stream completed.
+	if copyErr := <-copyErrCh; copyErr != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "upload stream error: " + copyErr.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "uploaded"})
+}
+
+// ProxyDownload streams bytes from a presigned GET URL back to the browser.
+// Data flows remote URL → this server → client without full buffering.
+func (h *Handler) ProxyDownload(c *gin.Context) {
+	remoteRaw := c.Query("url")
+	remote, err := parseRemoteURL(remoteRaw)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, remote.String(), nil)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		msg := strings.TrimSpace(string(b))
+		if msg == "" {
+			msg = resp.Status
+		}
+		c.JSON(resp.StatusCode, gin.H{"error": msg})
+		return
+	}
+
+	filename := c.Query("filename")
+	headers := map[string]string{}
+	if filename != "" {
+		headers["Content-Disposition"] = fmt.Sprintf(`attachment; filename="%s"`, path.Base(filename))
+	}
+
+	ct := resp.Header.Get("Content-Type")
+	if ct == "" {
+		ct = "application/octet-stream"
+	}
+
+	c.DataFromReader(resp.StatusCode, resp.ContentLength, ct, resp.Body, headers)
 }

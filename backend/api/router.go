@@ -20,6 +20,12 @@ func NewRouter(client *storage.Client) *gin.Engine {
 
 	h := &Handler{client: client}
 
+	// Standalone streaming proxy endpoints used by the shared /upload page.
+	// These routes are intentionally NOT under /api so the nginx frontend can
+	// expose a simple same-origin URL: http://<host>:3000/upload?url=... .
+	r.POST("/upload", h.ProxyUpload)
+	r.GET("/download", h.ProxyDownload)
+
 	v1 := r.Group("/api/v1")
 	{
 		// Bucket operations
