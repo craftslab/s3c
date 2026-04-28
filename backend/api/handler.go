@@ -244,6 +244,15 @@ func (h *Handler) resolvePublicBaseURL(c *gin.Context) string {
 	if host == "" {
 		return ""
 	}
+	// If nginx forwards host without port (using $host), recover it from X-Forwarded-Port.
+	if !strings.Contains(host, ":") {
+		if fp := c.GetHeader("X-Forwarded-Port"); fp != "" {
+			isDefault := (scheme == "http" && fp == "80") || (scheme == "https" && fp == "443")
+			if !isDefault {
+				host = host + ":" + fp
+			}
+		}
+	}
 	return scheme + "://" + host
 }
 
