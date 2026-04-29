@@ -128,7 +128,7 @@ onMounted(() => {
 
 function downloadFile() {
   if (!downloadUrl.value) return
-  window.open(downloadUrl.value, '_blank', 'noopener')
+  window.open(downloadUrl.value, '_blank', 'noopener,noreferrer')
 }
 
 function triggerFileInput() {
