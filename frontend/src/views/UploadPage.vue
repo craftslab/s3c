@@ -148,7 +148,14 @@ function startDownload() {
   if (!downloadUrl.value) return
   const qs = new URLSearchParams({ url: downloadUrl.value })
   if (targetFilename.value) qs.set('filename', targetFilename.value)
-  window.location.href = `/api/download?${qs.toString()}`
+  const link = document.createElement('a')
+  link.href = `/api/download?${qs.toString()}`
+  if (targetFilename.value) {
+    link.download = targetFilename.value
+  }
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
 }
 
 function uploadWithProgress(url, file, filename) {

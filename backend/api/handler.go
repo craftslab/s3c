@@ -766,12 +766,12 @@ func (h *Handler) GenerateDownloadLink(c *gin.Context) {
 	expiry := parseExpiry(c)
 	downloadURL, err := h.client.PresignedGetObject(c.Request.Context(), bucket, key, expiry)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate download url: " + err.Error()})
 		return
 	}
 	uploadURL, err := h.client.PresignedPutObject(c.Request.Context(), bucket, key, expiry)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate upload url: " + err.Error()})
 		return
 	}
 	directDownloadURL := downloadURL
