@@ -2,12 +2,12 @@
   <div class="browser-layout">
     <aside class="sidebar">
       <div class="sidebar-intro">
-        <p class="sidebar-eyebrow">Storage index / 存储索引</p>
-        <p class="sidebar-copy">A curated view of every bucket, ready for upload, cleanup, and sharing. / 以更克制的节奏浏览 Bucket，完成上传、清理与分享。</p>
+        <p class="sidebar-eyebrow">Storage index</p>
+        <p class="sidebar-copy">A curated view of every bucket, ready for upload, cleanup, and sharing.</p>
       </div>
       <div class="sidebar-header">
-        <span class="sidebar-title">Buckets / Bucket 列表</span>
-        <el-button circle type="primary" :icon="Plus" size="small" title="Create bucket / 新建 Bucket" @click="openCreateBucket" />
+        <span class="sidebar-title">Buckets</span>
+        <el-button circle type="primary" :icon="Plus" size="small" title="Create bucket" @click="openCreateBucket" />
       </div>
       <el-scrollbar class="sidebar-scroll">
         <ul class="bucket-list">
@@ -22,10 +22,10 @@
             <span class="bucket-name">{{ b.name }}</span>
           </li>
         </ul>
-        <el-empty v-if="!buckets.length" description="No buckets / 暂无 Bucket" :image-size="60" />
+        <el-empty v-if="!buckets.length" description="No buckets" :image-size="60" />
       </el-scrollbar>
       <div class="sidebar-footer">
-        <span>{{ buckets.length }} bucket{{ buckets.length === 1 ? '' : 's' }} / {{ buckets.length }} 个 Bucket</span>
+        <span>{{ buckets.length }} bucket{{ buckets.length === 1 ? '' : 's' }}</span>
       </div>
     </aside>
 
@@ -41,19 +41,19 @@
         </div>
         <div class="workspace-stats">
           <article class="stat-card">
-            <span class="stat-label">Buckets / Bucket 数量</span>
+            <span class="stat-label">Buckets</span>
             <strong class="stat-value">{{ buckets.length }}</strong>
           </article>
           <article class="stat-card">
-            <span class="stat-label">Visible files / 当前文件</span>
+            <span class="stat-label">Visible files</span>
             <strong class="stat-value">{{ visibleFileCount }}</strong>
           </article>
           <article class="stat-card">
-            <span class="stat-label">Visible folders / 当前目录</span>
+            <span class="stat-label">Visible folders</span>
             <strong class="stat-value">{{ visibleFolderCount }}</strong>
           </article>
           <article class="stat-card">
-            <span class="stat-label">Visible data / 当前容量</span>
+            <span class="stat-label">Visible data</span>
             <strong class="stat-value">{{ formatSize(visibleObjectBytes) }}</strong>
           </article>
         </div>
@@ -62,7 +62,7 @@
       <section class="workspace-panel">
         <div class="toolbar">
           <el-breadcrumb separator="/" class="breadcrumb">
-            <el-breadcrumb-item><span class="breadcrumb-link" @click="goBucketRoot">Home / 首页</span></el-breadcrumb-item>
+            <el-breadcrumb-item><span class="breadcrumb-link" @click="goBucketRoot">Home</span></el-breadcrumb-item>
             <el-breadcrumb-item v-if="currentBucket">
               <span class="breadcrumb-link" @click="goBucketRoot">{{ currentBucket }}</span>
             </el-breadcrumb-item>
@@ -72,58 +72,58 @@
           </el-breadcrumb>
 
           <div class="toolbar-actions">
-            <el-button v-if="currentBucket" :icon="Search" @click="searchVisible = !searchVisible">Search / 搜索</el-button>
-            <el-button v-if="currentBucket" :icon="Clock" @click="openHistoryDrawer">History / 历史</el-button>
-            <el-button v-if="currentBucket" :icon="Finished" @click="openTaskDrawer">Tasks / 任务</el-button>
-            <el-button v-if="currentBucket" :icon="Brush" @click="openCleanupDrawer">Cleanup / 清理</el-button>
-            <el-button v-if="currentBucket" :icon="Connection" @click="openWebhookDrawer">Webhooks / 回调</el-button>
-            <el-button v-if="currentBucket" type="primary" :icon="UploadFilled" @click="showUploadDialog = true">Upload / 上传</el-button>
-            <el-button v-if="currentBucket" :icon="Share" @click="openUploadLinkDialog">Upload Link / 上传链接</el-button>
+            <el-button v-if="currentBucket" :icon="Search" @click="searchVisible = !searchVisible">Search</el-button>
+            <el-button v-if="currentBucket" :icon="Clock" @click="openHistoryDrawer">History</el-button>
+            <el-button v-if="currentBucket" :icon="Finished" @click="openTaskDrawer">Tasks</el-button>
+            <el-button v-if="currentBucket" :icon="Brush" @click="openCleanupDrawer">Cleanup</el-button>
+            <el-button v-if="currentBucket" :icon="Connection" @click="openWebhookDrawer">Webhooks</el-button>
+            <el-button v-if="currentBucket" type="primary" :icon="UploadFilled" @click="showUploadDialog = true">Upload</el-button>
+            <el-button v-if="currentBucket" :icon="Share" @click="openUploadLinkDialog">Upload Link</el-button>
             <el-button
               v-if="currentBucket && !currentPrefix"
               type="danger"
               :icon="Delete"
               plain
               @click="confirmDeleteBucket"
-            >Delete Bucket / 删除 Bucket</el-button>
+            >Delete Bucket</el-button>
           </div>
         </div>
 
         <div v-if="currentBucket && searchVisible" class="search-panel">
           <el-form :inline="true" class="search-form">
-            <el-form-item label="Name / 名称">
-              <el-input v-model="searchForm.name" placeholder="contains... / 包含关键字" clearable />
+            <el-form-item label="Name">
+              <el-input v-model="searchForm.name" placeholder="contains..." clearable />
             </el-form-item>
-            <el-form-item label="Min Size / 最小体积">
+            <el-form-item label="Min Size">
               <el-input-number v-model="searchForm.minSize" :min="0" :controls="false" />
             </el-form-item>
-            <el-form-item label="Max Size / 最大体积">
+            <el-form-item label="Max Size">
               <el-input-number v-model="searchForm.maxSize" :min="0" :controls="false" />
             </el-form-item>
-            <el-form-item label="Modified / 修改时间">
+            <el-form-item label="Modified">
               <el-date-picker
                 v-model="searchDateRange"
                 type="datetimerange"
                 range-separator="to"
-                start-placeholder="Start / 开始"
-                end-placeholder="End / 结束"
+                start-placeholder="Start"
+                end-placeholder="End"
                 value-format="YYYY-MM-DDTHH:mm:ss[Z]"
               />
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" @click="applySearch">Search / 搜索</el-button>
-              <el-button @click="resetSearch">Reset / 重置</el-button>
+              <el-button type="primary" @click="applySearch">Search</el-button>
+              <el-button @click="resetSearch">Reset</el-button>
             </el-form-item>
           </el-form>
         </div>
 
         <div v-if="selectedRows.length" class="batch-toolbar">
-          <span>{{ selectedRows.length }} selected / 已选 {{ selectedRows.length }} 项</span>
+          <span>{{ selectedRows.length }} selected</span>
           <div class="batch-toolbar-actions">
-            <el-button size="small" :icon="Download" @click="downloadSelected">Download Zip / 打包下载</el-button>
-            <el-button size="small" :icon="FolderOpened" @click="openMoveDialog">Move / 移动</el-button>
-            <el-button size="small" :icon="Edit" @click="openRenameDialog">Rename / 重命名</el-button>
-            <el-button size="small" type="danger" :icon="Delete" plain @click="confirmBatchDelete">Delete / 删除</el-button>
+            <el-button size="small" :icon="Download" @click="downloadSelected">Download Zip</el-button>
+            <el-button size="small" :icon="FolderOpened" @click="openMoveDialog">Move</el-button>
+            <el-button size="small" :icon="Edit" @click="openRenameDialog">Rename</el-button>
+            <el-button size="small" type="danger" :icon="Delete" plain @click="confirmBatchDelete">Delete</el-button>
           </div>
         </div>
 
@@ -134,11 +134,11 @@
             class="objects-table"
             style="width: 100%"
             height="100%"
-            empty-text="No objects — select a bucket or upload files / 暂无对象，请先选择 Bucket 或上传文件"
+            empty-text="No objects — select a bucket or upload files"
             @selection-change="onSelectionChange"
           >
             <el-table-column type="selection" width="44" />
-            <el-table-column label="Name / 名称" min-width="320" show-overflow-tooltip>
+            <el-table-column label="Name" min-width="320" show-overflow-tooltip>
               <template #default="{ row }">
                 <div class="file-row" @click="handleRowClick(row)">
                   <el-icon class="file-icon" :color="row.isDir ? '#ad7f45' : '#7d7063'">
@@ -149,27 +149,27 @@
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="Size / 体积" width="120" align="right">
+            <el-table-column label="Size" width="120" align="right">
               <template #default="{ row }">
                 <span v-if="!row.isDir">{{ formatSize(row.size) }}</span>
                 <span v-else style="color:#b8aa99">—</span>
               </template>
             </el-table-column>
-            <el-table-column label="Last Modified / 修改时间" width="190">
+            <el-table-column label="Last Modified" width="190">
               <template #default="{ row }">
                 <span v-if="!row.isDir">{{ formatDate(row.lastModified) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="Actions / 操作" width="270" fixed="right">
+            <el-table-column label="Actions" width="270" fixed="right">
               <template #default="{ row }">
                 <el-button v-if="!row.isDir" type="primary" :icon="Download" size="small" @click.stop="downloadFile(row)">
-                  Download / 下载
+                  Download
                 </el-button>
                 <el-button v-if="!row.isDir" :icon="Share" size="small" @click.stop="openDownloadLinkDialog(row)">
-                  Copy Link / 复制链接
+                  Copy Link
                 </el-button>
                 <el-button type="danger" :icon="Delete" size="small" plain @click.stop="confirmDeleteObject(row)">
-                  Delete / 删除
+                  Delete
                 </el-button>
               </template>
             </el-table-column>
@@ -178,7 +178,7 @@
       </section>
     </div>
 
-    <el-dialog v-model="showUploadDialog" title="Batch Upload / 批量上传" width="640px" @closed="resetUpload">
+    <el-dialog v-model="showUploadDialog" title="Batch Upload" width="640px" @closed="resetUpload">
       <div
         class="drop-zone"
         :class="{ 'drop-zone--over': isDragging }"
@@ -188,18 +188,18 @@
         @click="triggerFileInput"
       >
         <el-icon :size="48" color="#201912"><UploadFilled /></el-icon>
-        <p>Drop files here or <strong>click</strong> to select files / 拖拽文件到此，或点击选择文件</p>
-        <p class="hint">Select a folder to keep its relative paths. Re-select the same files to resume unfinished uploads. / 选择文件夹可保留相对路径，重新选择同一批文件可继续未完成上传。</p>
+        <p>Drop files here or <strong>click</strong> to select files</p>
+        <p class="hint">Select a folder to keep its relative paths. Re-select the same files to resume unfinished uploads.</p>
       </div>
       <div class="upload-picker-actions">
-        <el-button @click.stop="triggerFileInput">Select Files / 选择文件</el-button>
-        <el-button @click.stop="triggerFolderInput">Select Folder / 选择文件夹</el-button>
+        <el-button @click.stop="triggerFileInput">Select Files</el-button>
+        <el-button @click.stop="triggerFolderInput">Select Folder</el-button>
       </div>
       <input ref="fileInputRef" type="file" multiple style="display:none" @change="onFileInputChange" />
       <input ref="folderInputRef" type="file" webkitdirectory multiple style="display:none" @change="onFolderInputChange" />
       <div v-if="uploadFiles.length" class="upload-list">
         <div class="upload-summary">
-          <div class="small-text">{{ uploadStats.completed }}/{{ uploadStats.total }} completed / 已完成 · {{ formatSize(uploadStats.loadedBytes) }} / {{ formatSize(uploadStats.totalBytes) }}</div>
+          <div class="small-text">{{ uploadStats.completed }}/{{ uploadStats.total }} completed · {{ formatSize(uploadStats.loadedBytes) }} / {{ formatSize(uploadStats.totalBytes) }}</div>
           <el-progress :percentage="uploadProgress" :status="uploadStats.failed ? 'exception' : uploadProgress === 100 ? 'success' : undefined" class="upload-progress" />
         </div>
         <div v-for="f in uploadFiles" :key="f.id" class="upload-item upload-item--stacked">
@@ -209,213 +209,213 @@
               <span class="upload-filename">{{ f.relativePath }}</span>
             </div>
             <span class="upload-size">{{ formatSize(f.size) }}</span>
-            <el-tag v-if="f.status === 'done'" type="success" size="small">Done / 已完成</el-tag>
-            <el-tag v-else-if="f.status === 'uploading'" type="primary" size="small">Uploading / 上传中</el-tag>
-            <el-tag v-else-if="f.status === 'paused'" type="warning" size="small">Paused / 已暂停</el-tag>
-            <el-tag v-else-if="f.status === 'error'" type="danger" size="small">Error / 出错</el-tag>
-            <el-tag v-else-if="f.status === 'resumable'" type="info" size="small">Resumable / 可继续</el-tag>
-            <el-tag v-else size="small">Pending / 待处理</el-tag>
+            <el-tag v-if="f.status === 'done'" type="success" size="small">Done</el-tag>
+            <el-tag v-else-if="f.status === 'uploading'" type="primary" size="small">Uploading</el-tag>
+            <el-tag v-else-if="f.status === 'paused'" type="warning" size="small">Paused</el-tag>
+            <el-tag v-else-if="f.status === 'error'" type="danger" size="small">Error</el-tag>
+            <el-tag v-else-if="f.status === 'resumable'" type="info" size="small">Resumable</el-tag>
+            <el-tag v-else size="small">Pending</el-tag>
           </div>
           <el-progress :percentage="fileProgress(f)" :status="f.status === 'error' ? 'exception' : f.status === 'done' ? 'success' : undefined" />
           <div class="small-text upload-item-detail">
             <span>{{ formatSize(f.uploadedBytes) }} / {{ formatSize(f.size) }}</span>
-            <span v-if="f.error">{{ f.error }}</span>
+            <span v-if="f.error">{{ extractTextBeforeSeparator(f.error) }}</span>
           </div>
         </div>
       </div>
       <template #footer>
-        <el-button @click="showUploadDialog = false">Close / 关闭</el-button>
-        <el-button :disabled="!uploadFiles.length || uploading" @click="clearUploadQueue">Clear / 清空</el-button>
-        <el-button v-if="uploading" @click="pauseUpload">Pause / 暂停</el-button>
+        <el-button @click="showUploadDialog = false">Close</el-button>
+        <el-button :disabled="!uploadFiles.length || uploading" @click="clearUploadQueue">Clear</el-button>
+        <el-button v-if="uploading" @click="pauseUpload">Pause</el-button>
         <el-button type="primary" :disabled="!uploadFiles.length || uploading || uploadStats.completed === uploadStats.total" :loading="uploading" @click="startUpload">
-          {{ uploadStats.completed ? 'Resume Upload / 继续上传' : 'Start Upload / 开始上传' }}{{ uploadFiles.length ? ` (${uploadFiles.length})` : '' }}
+          {{ uploadStats.completed ? 'Resume Upload' : 'Start Upload' }}{{ uploadFiles.length ? ` (${uploadFiles.length})` : '' }}
         </el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="showCreateDialog" title="Create Bucket / 新建 Bucket" width="400px">
+    <el-dialog v-model="showCreateDialog" title="Create Bucket" width="400px">
       <el-form :model="newBucket" label-width="80px" @submit.prevent="createBucketAction">
-        <el-form-item label="Name / 名称"><el-input v-model="newBucket.name" placeholder="my-bucket" autofocus /></el-form-item>
-        <el-form-item label="Region / 区域"><el-input v-model="newBucket.region" placeholder="us-east-1" /></el-form-item>
+        <el-form-item label="Name"><el-input v-model="newBucket.name" placeholder="my-bucket" autofocus /></el-form-item>
+        <el-form-item label="Region"><el-input v-model="newBucket.region" placeholder="us-east-1" /></el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="showCreateDialog = false">Cancel / 取消</el-button>
-        <el-button type="primary" @click="createBucketAction">Create / 创建</el-button>
+        <el-button @click="showCreateDialog = false">Cancel</el-button>
+        <el-button type="primary" @click="createBucketAction">Create</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="showMoveDialog" title="Move Selected Items / 移动所选对象" width="480px">
+    <el-dialog v-model="showMoveDialog" title="Move Selected Items" width="480px">
       <el-form label-width="120px">
-        <el-form-item label="Target Prefix / 目标前缀">
+        <el-form-item label="Target Prefix">
           <el-input v-model="moveTargetPrefix" placeholder="archive/2026" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="showMoveDialog = false">Cancel / 取消</el-button>
-        <el-button type="primary" @click="submitBatchMove">Move / 移动</el-button>
+        <el-button @click="showMoveDialog = false">Cancel</el-button>
+        <el-button type="primary" @click="submitBatchMove">Move</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="showRenameDialog" title="Rename Selected Items / 重命名所选对象" width="640px">
+    <el-dialog v-model="showRenameDialog" title="Rename Selected Items" width="640px">
       <div class="rename-list">
         <div v-for="item in renameItems" :key="item.sourceKey" class="rename-item">
           <span class="rename-source">{{ item.sourceKey }}</span>
-          <el-input v-model="item.newName" placeholder="New name / 新名称" />
+          <el-input v-model="item.newName" placeholder="New name" />
         </div>
       </div>
       <template #footer>
-        <el-button @click="showRenameDialog = false">Cancel / 取消</el-button>
-        <el-button type="primary" @click="submitBatchRename">Rename / 重命名</el-button>
+        <el-button @click="showRenameDialog = false">Cancel</el-button>
+        <el-button type="primary" @click="submitBatchRename">Rename</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="showDownloadLinkDialog" title="Generate Download Link / 生成下载链接" width="540px">
+    <el-dialog v-model="showDownloadLinkDialog" title="Generate Download Link" width="540px">
       <el-form label-width="100px">
-        <el-form-item label="File / 文件"><span class="link-meta">{{ downloadLinkTarget?.key }}</span></el-form-item>
-        <el-form-item label="Expires in / 有效期">
+        <el-form-item label="File"><span class="link-meta">{{ downloadLinkTarget?.key }}</span></el-form-item>
+        <el-form-item label="Expires in">
           <el-select v-model="downloadLinkExpiry" style="width:100%">
-            <el-option label="1 hour / 1 小时" :value="3600" />
-            <el-option label="6 hours / 6 小时" :value="21600" />
-            <el-option label="24 hours / 24 小时" :value="86400" />
-            <el-option label="3 days / 3 天" :value="259200" />
-            <el-option label="7 days / 7 天" :value="604800" />
+            <el-option label="1 hour" :value="3600" />
+            <el-option label="6 hours" :value="21600" />
+            <el-option label="24 hours" :value="86400" />
+            <el-option label="3 days" :value="259200" />
+            <el-option label="7 days" :value="604800" />
           </el-select>
         </el-form-item>
       </el-form>
       <div v-if="downloadLinkUrl" class="generated-link">
         <el-input v-model="downloadLinkUrl" readonly>
-          <template #append><el-button :icon="CopyDocument" @click="copyToClipboard(downloadLinkUrl)">Copy / 复制</el-button></template>
+          <template #append><el-button :icon="CopyDocument" @click="copyToClipboard(downloadLinkUrl)">Copy</el-button></template>
         </el-input>
       </div>
       <template #footer>
-        <el-button @click="showDownloadLinkDialog = false">Close / 关闭</el-button>
-        <el-button type="primary" :loading="generatingDownloadLink" @click="generateDownloadLinkAction">Generate Link / 生成链接</el-button>
+        <el-button @click="showDownloadLinkDialog = false">Close</el-button>
+        <el-button type="primary" :loading="generatingDownloadLink" @click="generateDownloadLinkAction">Generate Link</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="showUploadLinkDialog" title="Generate Upload Link / 生成上传链接" width="540px" @closed="resetUploadLink">
+    <el-dialog v-model="showUploadLinkDialog" title="Generate Upload Link" width="540px" @closed="resetUploadLink">
       <el-form label-width="100px">
-        <el-form-item label="Destination / 目标路径">
+        <el-form-item label="Destination">
           <el-input v-model="uploadLinkKey" placeholder="folder/filename.ext" />
-          <div class="field-hint">Full object key for the upload destination. / 请输入完整对象路径作为上传目标。</div>
+          <div class="field-hint">Full object key for the upload destination.</div>
         </el-form-item>
-        <el-form-item label="Expires in / 有效期">
+        <el-form-item label="Expires in">
           <el-select v-model="uploadLinkExpiry" style="width:100%">
-            <el-option label="1 hour / 1 小时" :value="3600" />
-            <el-option label="6 hours / 6 小时" :value="21600" />
-            <el-option label="24 hours / 24 小时" :value="86400" />
-            <el-option label="3 days / 3 天" :value="259200" />
-            <el-option label="7 days / 7 天" :value="604800" />
+            <el-option label="1 hour" :value="3600" />
+            <el-option label="6 hours" :value="21600" />
+            <el-option label="24 hours" :value="86400" />
+            <el-option label="3 days" :value="259200" />
+            <el-option label="7 days" :value="604800" />
           </el-select>
         </el-form-item>
       </el-form>
       <div v-if="uploadPageUrl" class="generated-link">
         <el-input v-model="uploadPageUrl" readonly>
-          <template #append><el-button :icon="CopyDocument" @click="copyToClipboard(uploadPageUrl)">Copy / 复制</el-button></template>
+          <template #append><el-button :icon="CopyDocument" @click="copyToClipboard(uploadPageUrl)">Copy</el-button></template>
         </el-input>
       </div>
       <template #footer>
-        <el-button @click="showUploadLinkDialog = false">Close / 关闭</el-button>
-        <el-button type="primary" :loading="generatingUploadLink" @click="generateUploadLinkAction">Generate Link / 生成链接</el-button>
+        <el-button @click="showUploadLinkDialog = false">Close</el-button>
+        <el-button type="primary" :loading="generatingUploadLink" @click="generateUploadLinkAction">Generate Link</el-button>
       </template>
     </el-dialog>
 
-    <el-drawer v-model="showTaskDrawer" title="Tasks / 任务中心" size="50%">
-      <div class="drawer-actions"><el-button :icon="Refresh" @click="refreshTasks">Refresh / 刷新</el-button></div>
+    <el-drawer v-model="showTaskDrawer" title="Tasks" size="50%">
+      <div class="drawer-actions"><el-button :icon="Refresh" @click="refreshTasks">Refresh</el-button></div>
       <el-table :data="tasks" size="small">
-        <el-table-column prop="type" label="Type / 类型" width="130" />
-        <el-table-column prop="bucket" label="Bucket / Bucket" width="120" />
-        <el-table-column label="Progress / 进度" min-width="220">
+        <el-table-column prop="type" label="Type" width="130" />
+        <el-table-column prop="bucket" label="Bucket" width="120" />
+        <el-table-column label="Progress" min-width="220">
           <template #default="{ row }">
             <el-progress :percentage="taskProgress(row)" :status="row.status === 'failed' ? 'exception' : row.status === 'completed' ? 'success' : undefined" />
             <div class="small-text">{{ row.completedItems }}/{{ row.totalItems }} · {{ taskMessage(row) }}</div>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="Status / 状态" width="110" />
-        <el-table-column label="Updated / 更新时间" width="180">
+        <el-table-column prop="status" label="Status" width="110" />
+        <el-table-column label="Updated" width="180">
           <template #default="{ row }">{{ formatDate(row.updatedAt) }}</template>
         </el-table-column>
       </el-table>
     </el-drawer>
 
-    <el-drawer v-model="showHistoryDrawer" title="Operation History / 操作历史" size="55%">
-      <div class="drawer-actions"><el-button :icon="Refresh" @click="refreshHistory">Refresh / 刷新</el-button></div>
+    <el-drawer v-model="showHistoryDrawer" title="Operation History" size="55%">
+      <div class="drawer-actions"><el-button :icon="Refresh" @click="refreshHistory">Refresh</el-button></div>
       <el-table :data="historyEntries" size="small">
-        <el-table-column prop="type" label="Type / 类型" width="170" />
-        <el-table-column prop="actor" label="Actor / 执行方" width="110" />
-        <el-table-column prop="status" label="Status / 状态" width="90" />
-        <el-table-column label="Keys / 对象键" min-width="260">
+        <el-table-column prop="type" label="Type" width="170" />
+        <el-table-column prop="actor" label="Actor" width="110" />
+        <el-table-column prop="status" label="Status" width="90" />
+        <el-table-column label="Keys" min-width="260">
           <template #default="{ row }">{{ (row.keys || []).join(', ') }}</template>
         </el-table-column>
-        <el-table-column label="Created / 创建时间" width="180">
+        <el-table-column label="Created" width="180">
           <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
         </el-table-column>
       </el-table>
     </el-drawer>
 
-    <el-drawer v-model="showCleanupDrawer" title="Cleanup Policies / 清理策略" size="55%">
+    <el-drawer v-model="showCleanupDrawer" title="Cleanup Policies" size="55%">
       <el-form label-width="130px" class="drawer-form">
-        <el-form-item label="Policy Name / 策略名称"><el-input v-model="cleanupForm.name" /></el-form-item>
-        <el-form-item label="Bucket / Bucket"><el-input v-model="cleanupForm.bucket" /></el-form-item>
-        <el-form-item label="Prefix / 前缀"><el-input v-model="cleanupForm.prefix" placeholder="logs/" /></el-form-item>
-        <el-form-item label="Name Contains / 名称包含"><el-input v-model="cleanupForm.nameContains" /></el-form-item>
-        <el-form-item label="Older Than Days / 保留天数"><el-input-number v-model="cleanupForm.olderThanDays" :min="0" /></el-form-item>
-        <el-form-item label="Keep Latest / 保留最新"><el-input-number v-model="cleanupForm.keepLatest" :min="0" /></el-form-item>
-        <el-form-item label="Min Size / 最小体积"><el-input-number v-model="cleanupForm.minSize" :min="0" :controls="false" /></el-form-item>
-        <el-form-item label="Max Size / 最大体积"><el-input-number v-model="cleanupForm.maxSize" :min="0" :controls="false" /></el-form-item>
-        <el-form-item label="Enabled / 启用"><el-switch v-model="cleanupForm.enabled" /></el-form-item>
+        <el-form-item label="Policy Name"><el-input v-model="cleanupForm.name" /></el-form-item>
+        <el-form-item label="Bucket"><el-input v-model="cleanupForm.bucket" /></el-form-item>
+        <el-form-item label="Prefix"><el-input v-model="cleanupForm.prefix" placeholder="logs/" /></el-form-item>
+        <el-form-item label="Name Contains"><el-input v-model="cleanupForm.nameContains" /></el-form-item>
+        <el-form-item label="Older Than Days"><el-input-number v-model="cleanupForm.olderThanDays" :min="0" /></el-form-item>
+        <el-form-item label="Keep Latest"><el-input-number v-model="cleanupForm.keepLatest" :min="0" /></el-form-item>
+        <el-form-item label="Min Size"><el-input-number v-model="cleanupForm.minSize" :min="0" :controls="false" /></el-form-item>
+        <el-form-item label="Max Size"><el-input-number v-model="cleanupForm.maxSize" :min="0" :controls="false" /></el-form-item>
+        <el-form-item label="Enabled"><el-switch v-model="cleanupForm.enabled" /></el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="createCleanupPolicyAction">Save Policy / 保存策略</el-button>
+          <el-button type="primary" @click="createCleanupPolicyAction">Save Policy</el-button>
         </el-form-item>
       </el-form>
       <el-table :data="cleanupPolicies" size="small">
-        <el-table-column prop="name" label="Name / 名称" min-width="150" />
-        <el-table-column prop="bucket" label="Bucket / Bucket" width="120" />
-        <el-table-column prop="prefix" label="Prefix / 前缀" min-width="140" />
-        <el-table-column label="Last Run / 上次执行" width="180">
+        <el-table-column prop="name" label="Name" min-width="150" />
+        <el-table-column prop="bucket" label="Bucket" width="120" />
+        <el-table-column prop="prefix" label="Prefix" min-width="140" />
+        <el-table-column label="Last Run" width="180">
           <template #default="{ row }">{{ formatDate(row.lastRunAt) }}</template>
         </el-table-column>
-        <el-table-column label="Actions / 操作" width="180">
+        <el-table-column label="Actions" width="180">
           <template #default="{ row }">
-            <el-button size="small" @click="runCleanupPolicyAction(row)">Run / 执行</el-button>
-            <el-button size="small" type="danger" plain @click="deleteCleanupPolicyAction(row)">Delete / 删除</el-button>
+            <el-button size="small" @click="runCleanupPolicyAction(row)">Run</el-button>
+            <el-button size="small" type="danger" plain @click="deleteCleanupPolicyAction(row)">Delete</el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-drawer>
 
-    <el-drawer v-model="showWebhookDrawer" title="Webhooks / 回调订阅" size="60%">
+    <el-drawer v-model="showWebhookDrawer" title="Webhooks" size="60%">
       <el-form label-width="110px" class="drawer-form">
-        <el-form-item label="Name / 名称"><el-input v-model="webhookForm.name" /></el-form-item>
-        <el-form-item label="URL / 地址"><el-input v-model="webhookForm.url" placeholder="https://example.com/webhook" /></el-form-item>
-        <el-form-item label="Events / 事件">
+        <el-form-item label="Name"><el-input v-model="webhookForm.name" /></el-form-item>
+        <el-form-item label="URL"><el-input v-model="webhookForm.url" placeholder="https://example.com/webhook" /></el-form-item>
+        <el-form-item label="Events">
           <el-select v-model="webhookForm.events" multiple style="width:100%">
             <el-option v-for="event in webhookEvents" :key="event" :label="event" :value="event" />
           </el-select>
         </el-form-item>
-        <el-form-item label="Secret / 密钥"><el-input v-model="webhookForm.secret" type="password" show-password /></el-form-item>
-        <el-form-item label="Enabled / 启用"><el-switch v-model="webhookForm.enabled" /></el-form-item>
-        <el-form-item><el-button type="primary" @click="createWebhookAction">Save Webhook / 保存 Webhook</el-button></el-form-item>
+        <el-form-item label="Secret"><el-input v-model="webhookForm.secret" type="password" show-password /></el-form-item>
+        <el-form-item label="Enabled"><el-switch v-model="webhookForm.enabled" /></el-form-item>
+        <el-form-item><el-button type="primary" @click="createWebhookAction">Save Webhook</el-button></el-form-item>
       </el-form>
       <el-table :data="webhooks" size="small">
-        <el-table-column prop="name" label="Name / 名称" min-width="140" />
+        <el-table-column prop="name" label="Name" min-width="140" />
         <el-table-column prop="url" label="URL" min-width="220" show-overflow-tooltip />
-        <el-table-column label="Events / 事件" min-width="180">
+        <el-table-column label="Events" min-width="180">
           <template #default="{ row }">{{ (row.events || []).join(', ') }}</template>
         </el-table-column>
-        <el-table-column label="Actions / 操作" width="120">
+        <el-table-column label="Actions" width="120">
           <template #default="{ row }">
-            <el-button size="small" type="danger" plain @click="deleteWebhookAction(row)">Delete / 删除</el-button>
+            <el-button size="small" type="danger" plain @click="deleteWebhookAction(row)">Delete</el-button>
           </template>
         </el-table-column>
       </el-table>
-      <h4 class="drawer-subtitle">Recent Deliveries / 最近投递</h4>
+      <h4 class="drawer-subtitle">Recent Deliveries</h4>
       <el-table :data="deliveries" size="small">
-        <el-table-column prop="webhook" label="Webhook / Webhook" min-width="130" />
-        <el-table-column prop="event" label="Event / 事件" min-width="150" />
-        <el-table-column prop="status" label="Status / 状态" width="100" />
+        <el-table-column prop="webhook" label="Webhook" min-width="130" />
+        <el-table-column prop="event" label="Event" min-width="150" />
+        <el-table-column prop="status" label="Status" width="100" />
         <el-table-column prop="statusCode" label="HTTP" width="80" />
-        <el-table-column prop="error" label="Error / 错误" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="error" label="Error" min-width="180" show-overflow-tooltip />
       </el-table>
     </el-drawer>
   </div>
@@ -549,21 +549,21 @@ const webhookEvents = [
   'cleanup.completed'
 ]
 const webhookForm = ref({ name: '', url: '', events: ['object.uploaded'], secret: '', enabled: true })
-const PENDING_STATUS_LABEL = 'pending / 待处理'
+const PENDING_STATUS_LABEL = 'Pending'
 
 const workspaceCopy = {
   default: {
-    eyebrow: 'Storage workspace / 存储工作台',
-    title: 'Select a bucket to start curating storage / 选择一个 Bucket 开始整理存储',
-    subtitle: 'Editorial hierarchy, warm surfaces, and clearer language for every storage task. / 用更像 Anthropic 的排版层次与更统一的中英文文案管理存储。',
-    description: 'Choose a bucket on the left to browse objects, share links, and run cleanup flows without leaving the workspace. / 从左侧选择 Bucket，即可在同一界面中浏览对象、生成链接并执行清理。'
+    eyebrow: 'Storage workspace',
+    title: 'Select a bucket to start curating storage',
+    subtitle: 'Editorial hierarchy, warm surfaces, and clearer language for every storage task.',
+    description: 'Choose a bucket on the left to browse objects, share links, and run cleanup flows without leaving the workspace.'
   },
   active(bucket, prefix) {
     return {
-      eyebrow: 'Active bucket / 当前 Bucket',
+      eyebrow: 'Active bucket',
       title: bucket,
-      subtitle: `A calmer place to browse ${bucket}. / 以更有秩序的方式管理 ${bucket}。`,
-      description: `Manage ${bucket} from one warm, focused surface${prefix ? ` — ${prefix}` : '.'} / 在一个更专注的界面中完成 ${bucket}${prefix ? ` — ${prefix}` : ''} 的浏览、上传、清理与分享。`
+      subtitle: `A calmer place to browse ${bucket}.`,
+      description: `Manage ${bucket} from one warm, focused surface${prefix ? ` — ${prefix}` : '.'}`
     }
   }
 }
@@ -627,7 +627,7 @@ async function fetchBuckets() {
     const { data } = await listBuckets()
     buckets.value = data || []
   } catch (error) {
-    ElMessage.error('Failed to load buckets / 加载 Bucket 失败：' + (error.response?.data?.error || error.message))
+    ElMessage.error('Failed to load buckets: ' + (error.response?.data?.error || error.message))
   }
 }
 
@@ -642,7 +642,7 @@ async function fetchObjects() {
     objects.value = data || []
   } catch (error) {
     objects.value = []
-    ElMessage.error('Failed to load objects / 加载对象失败：' + (error.response?.data?.error || error.message))
+    ElMessage.error('Failed to load objects: ' + (error.response?.data?.error || error.message))
   } finally {
     loading.value = false
   }
@@ -701,26 +701,26 @@ function openCreateBucket() {
 
 async function createBucketAction() {
   const name = newBucket.value.name.trim()
-  if (!name) return ElMessage.warning('Bucket name is required / 请输入 Bucket 名称')
+  if (!name) return ElMessage.warning('Bucket name is required')
   try {
     await createBucket(name, newBucket.value.region || 'us-east-1')
     showCreateDialog.value = false
-    ElMessage.success(`Bucket "${name}" created / Bucket 已创建`)
+    ElMessage.success(`Bucket "${name}" created`)
     await fetchBuckets()
   } catch (error) {
-    ElMessage.error('Failed to create bucket / 创建 Bucket 失败：' + (error.response?.data?.error || error.message))
+    ElMessage.error('Failed to create bucket: ' + (error.response?.data?.error || error.message))
   }
 }
 
 async function confirmDeleteBucket() {
   try {
-    await ElMessageBox.confirm(`Delete bucket "${currentBucket.value}"? All objects must be removed first. / 删除 Bucket "${currentBucket.value}" 前，需要先清空其中对象。`, 'Delete Bucket / 删除 Bucket', { type: 'warning' })
+    await ElMessageBox.confirm(`Delete bucket "${currentBucket.value}"? All objects must be removed first.`, 'Delete Bucket', { type: 'warning' })
     await deleteBucket(currentBucket.value)
-    ElMessage.success('Bucket deleted / Bucket 已删除')
+    ElMessage.success('Bucket deleted')
     router.push({ name: 'browser' })
     await fetchBuckets()
   } catch (error) {
-    if (error !== 'cancel') ElMessage.error('Action failed / 操作失败：' + (error.response?.data?.error || error.message))
+    if (error !== 'cancel') ElMessage.error('Action failed: ' + (error.response?.data?.error || error.message))
   }
 }
 
@@ -735,13 +735,13 @@ function downloadFile(row) {
 
 async function confirmDeleteObject(row) {
   try {
-    await ElMessageBox.confirm(`Delete ${row.isDir ? 'folder' : 'file'} "${row.name}"? / 确认删除${row.isDir ? '目录' : '文件'} "${row.name}"？`, 'Confirm Delete / 确认删除', { type: 'warning' })
+    await ElMessageBox.confirm(`Delete ${row.isDir ? 'folder' : 'file'} "${row.name}"?`, 'Confirm Delete', { type: 'warning' })
     await deleteObject(currentBucket.value, row.key)
-    ElMessage.success('Deleted / 已删除')
+    ElMessage.success('Deleted')
     await fetchObjects()
     await refreshHistory()
   } catch (error) {
-    if (error !== 'cancel') ElMessage.error('Action failed / 操作失败：' + (error.response?.data?.error || error.message))
+    if (error !== 'cancel') ElMessage.error('Action failed: ' + (error.response?.data?.error || error.message))
   }
 }
 
@@ -830,17 +830,17 @@ async function startUpload() {
       uploadFiles.value.forEach((item) => {
         if (item.status !== 'done') item.status = 'paused'
       })
-      ElMessage.info('Upload paused / 上传已暂停')
+      ElMessage.info('Upload paused')
       return
     }
     if (uploadFiles.value.every((item) => item.status === 'done')) {
-      ElMessage.success(`${uploadFiles.value.length} file(s) uploaded / 已上传 ${uploadFiles.value.length} 个文件`)
+      ElMessage.success(`${uploadFiles.value.length} file(s) uploaded`)
       showUploadDialog.value = false
       await clearUploadQueue()
       await Promise.all([fetchObjects(), refreshTasks(), refreshHistory()])
     }
   } catch (error) {
-    ElMessage.error('Upload failed / 上传失败：' + (error.response?.data?.error || error.message))
+    ElMessage.error('Upload failed: ' + (error.response?.data?.error || error.message))
   } finally {
     uploading.value = false
     refreshUploadProgress()
@@ -870,7 +870,7 @@ async function clearUploadQueue() {
 async function uploadFileInParts(item, taskId) {
   try {
     if (!item.file) {
-      throw new Error(`Please re-select "${item.relativePath}" to continue. / 请重新选择 "${item.relativePath}" 后继续。`)
+      throw new Error(`Please re-select "${item.relativePath}" to continue.`)
     }
     item.status = 'uploading'
     item.error = ''
@@ -1071,7 +1071,7 @@ async function downloadSelected() {
     window.URL.revokeObjectURL(url)
     await refreshHistory()
   } catch (error) {
-    ElMessage.error('Batch download failed / 批量下载失败：' + (error.response?.data?.error || error.message))
+    ElMessage.error('Batch download failed: ' + (error.response?.data?.error || error.message))
   }
 }
 
@@ -1089,10 +1089,10 @@ async function submitBatchMove() {
   try {
     await batchMove(currentBucket.value, items, createTaskId('move'))
     showMoveDialog.value = false
-    ElMessage.success('Move started/completed / 移动任务已开始或完成')
+    ElMessage.success('Move started/completed')
     await Promise.all([fetchObjects(), refreshTasks(), refreshHistory()])
   } catch (error) {
-    ElMessage.error('Move failed / 移动失败：' + (error.response?.data?.error || error.message))
+    ElMessage.error('Move failed: ' + (error.response?.data?.error || error.message))
   }
 }
 
@@ -1105,21 +1105,21 @@ async function submitBatchRename() {
   try {
     await batchRename(currentBucket.value, renameItems.value, createTaskId('rename'))
     showRenameDialog.value = false
-    ElMessage.success('Rename started/completed / 重命名任务已开始或完成')
+    ElMessage.success('Rename started/completed')
     await Promise.all([fetchObjects(), refreshTasks(), refreshHistory()])
   } catch (error) {
-    ElMessage.error('Rename failed / 重命名失败：' + (error.response?.data?.error || error.message))
+    ElMessage.error('Rename failed: ' + (error.response?.data?.error || error.message))
   }
 }
 
 async function confirmBatchDelete() {
   try {
-    await ElMessageBox.confirm(`Delete ${selectedRows.value.length} selected item(s)? / 确认删除已选择的 ${selectedRows.value.length} 项？`, 'Batch Delete / 批量删除', { type: 'warning' })
+    await ElMessageBox.confirm(`Delete ${selectedRows.value.length} selected item(s)?`, 'Batch Delete', { type: 'warning' })
     await batchDelete(currentBucket.value, selectedKeys(), createTaskId('delete'))
-    ElMessage.success('Delete started/completed / 删除任务已开始或完成')
+    ElMessage.success('Delete started/completed')
     await Promise.all([fetchObjects(), refreshTasks(), refreshHistory()])
   } catch (error) {
-    if (error !== 'cancel') ElMessage.error('Delete failed / 删除失败：' + (error.response?.data?.error || error.message))
+    if (error !== 'cancel') ElMessage.error('Delete failed: ' + (error.response?.data?.error || error.message))
   }
 }
 
@@ -1141,12 +1141,12 @@ async function generateDownloadLinkAction() {
     ])
     if (downloadResult.status === 'rejected') {
       throw new Error(
-        `Failed to create download link / 下载链接创建失败：${downloadResult.reason?.response?.data?.error || downloadResult.reason?.message || 'unknown error'}`
+        `Failed to create download link: ${downloadResult.reason?.response?.data?.error || downloadResult.reason?.message || 'unknown error'}`
       )
     }
     if (uploadResult.status === 'rejected') {
       throw new Error(
-        `Failed to create upload link / 上传链接创建失败：${uploadResult.reason?.response?.data?.error || uploadResult.reason?.message || 'unknown error'}`
+        `Failed to create upload link: ${uploadResult.reason?.response?.data?.error || uploadResult.reason?.message || 'unknown error'}`
       )
     }
     const downloadData = downloadResult.value.data
@@ -1159,7 +1159,7 @@ async function generateDownloadLinkAction() {
     })
     downloadLinkUrl.value = `${window.location.origin}/upload?${params.toString()}`
   } catch (error) {
-    ElMessage.error(error.message || 'Failed to generate link / 生成链接失败')
+    ElMessage.error(error.message || 'Failed to generate link')
   } finally {
     generatingDownloadLink.value = false
   }
@@ -1174,7 +1174,7 @@ function openUploadLinkDialog() {
 
 async function generateUploadLinkAction() {
   const key = uploadLinkKey.value.trim()
-  if (!key) return ElMessage.warning('Destination key is required / 请输入目标对象路径')
+  if (!key) return ElMessage.warning('Destination key is required')
   generatingUploadLink.value = true
   try {
     const { data } = await generateUploadLink(currentBucket.value, key, uploadLinkExpiry.value)
@@ -1182,7 +1182,7 @@ async function generateUploadLinkAction() {
     const params = new URLSearchParams({ url: data.url, filename })
     uploadPageUrl.value = `${window.location.origin}/upload?${params.toString()}`
   } catch (error) {
-    ElMessage.error('Failed to generate link / 生成链接失败：' + (error.response?.data?.error || error.message))
+    ElMessage.error('Failed to generate link: ' + (error.response?.data?.error || error.message))
   } finally {
     generatingUploadLink.value = false
   }
@@ -1218,7 +1218,7 @@ async function refreshTasks() {
     const { data } = await listTasks({ bucket: currentBucket.value || undefined })
     tasks.value = data || []
   } catch (error) {
-    ElMessage.error('Failed to load tasks / 加载任务失败：' + (error.response?.data?.error || error.message))
+    ElMessage.error('Failed to load tasks: ' + (error.response?.data?.error || error.message))
   }
 }
 
@@ -1227,7 +1227,7 @@ async function refreshHistory() {
     const { data } = await listHistory({ bucket: currentBucket.value || undefined })
     historyEntries.value = data || []
   } catch (error) {
-    ElMessage.error('Failed to load history / 加载历史失败：' + (error.response?.data?.error || error.message))
+    ElMessage.error('Failed to load history: ' + (error.response?.data?.error || error.message))
   }
 }
 
@@ -1236,13 +1236,13 @@ async function refreshCleanupPolicies() {
     const { data } = await listCleanupPolicies()
     cleanupPolicies.value = (data || []).filter((policy) => !currentBucket.value || policy.bucket === currentBucket.value)
   } catch (error) {
-    ElMessage.error('Failed to load cleanup policies / 加载清理策略失败：' + (error.response?.data?.error || error.message))
+    ElMessage.error('Failed to load cleanup policies: ' + (error.response?.data?.error || error.message))
   }
 }
 
 async function createCleanupPolicyAction() {
   if (!cleanupForm.value.name || !cleanupForm.value.bucket) {
-    return ElMessage.warning('Policy name and bucket are required / 请输入策略名称与 Bucket')
+    return ElMessage.warning('Policy name and bucket are required')
   }
   try {
     await createCleanupPolicy({ ...cleanupForm.value })
@@ -1257,30 +1257,30 @@ async function createCleanupPolicyAction() {
       maxSize: 0,
       enabled: true
     }
-    ElMessage.success('Cleanup policy saved / 清理策略已保存')
+    ElMessage.success('Cleanup policy saved')
     await refreshCleanupPolicies()
   } catch (error) {
-    ElMessage.error('Failed to save cleanup policy / 保存清理策略失败：' + (error.response?.data?.error || error.message))
+    ElMessage.error('Failed to save cleanup policy: ' + (error.response?.data?.error || error.message))
   }
 }
 
 async function runCleanupPolicyAction(policy) {
   try {
     const { data } = await runCleanupPolicy(policy.id)
-    ElMessage.success(`Cleanup removed ${(data.deleted || []).length} object(s) / 已清理 ${(data.deleted || []).length} 个对象`) 
+    ElMessage.success(`Cleanup removed ${(data.deleted || []).length} object(s)`) 
     await Promise.all([fetchObjects(), refreshCleanupPolicies(), refreshHistory(), refreshTasks()])
   } catch (error) {
-    ElMessage.error('Cleanup failed / 清理失败：' + (error.response?.data?.error || error.message))
+    ElMessage.error('Cleanup failed: ' + (error.response?.data?.error || error.message))
   }
 }
 
 async function deleteCleanupPolicyAction(policy) {
   try {
     await deleteCleanupPolicy(policy.id)
-    ElMessage.success('Policy deleted / 策略已删除')
+    ElMessage.success('Policy deleted')
     await refreshCleanupPolicies()
   } catch (error) {
-    ElMessage.error('Failed to delete policy / 删除策略失败：' + (error.response?.data?.error || error.message))
+    ElMessage.error('Failed to delete policy: ' + (error.response?.data?.error || error.message))
   }
 }
 
@@ -1290,29 +1290,29 @@ async function refreshWebhooks() {
     webhooks.value = hooks || []
     deliveries.value = deliveryItems || []
   } catch (error) {
-    ElMessage.error('Failed to load webhooks / 加载 Webhook 失败：' + (error.response?.data?.error || error.message))
+    ElMessage.error('Failed to load webhooks: ' + (error.response?.data?.error || error.message))
   }
 }
 
 async function createWebhookAction() {
-  if (!webhookForm.value.name || !webhookForm.value.url) return ElMessage.warning('Webhook name and URL are required / 请输入 Webhook 名称与 URL')
+  if (!webhookForm.value.name || !webhookForm.value.url) return ElMessage.warning('Webhook name and URL are required')
   try {
     await createWebhook({ ...webhookForm.value })
     webhookForm.value = { name: '', url: '', events: ['object.uploaded'], secret: '', enabled: true }
-    ElMessage.success('Webhook saved / Webhook 已保存')
+    ElMessage.success('Webhook saved')
     await refreshWebhooks()
   } catch (error) {
-    ElMessage.error('Failed to save webhook / 保存 Webhook 失败：' + (error.response?.data?.error || error.message))
+    ElMessage.error('Failed to save webhook: ' + (error.response?.data?.error || error.message))
   }
 }
 
 async function deleteWebhookAction(webhook) {
   try {
     await deleteWebhook(webhook.id)
-    ElMessage.success('Webhook deleted / Webhook 已删除')
+    ElMessage.success('Webhook deleted')
     await refreshWebhooks()
   } catch (error) {
-    ElMessage.error('Failed to delete webhook / 删除 Webhook 失败：' + (error.response?.data?.error || error.message))
+    ElMessage.error('Failed to delete webhook: ' + (error.response?.data?.error || error.message))
   }
 }
 
@@ -1356,9 +1356,9 @@ async function copyToClipboard(text) {
       document.execCommand('copy')
       document.body.removeChild(ta)
     }
-    ElMessage.success('Copied to clipboard / 已复制到剪贴板')
+    ElMessage.success('Copied to clipboard')
   } catch {
-    ElMessage.error('Failed to copy / 复制失败')
+    ElMessage.error('Failed to copy')
   }
 }
 
@@ -1375,17 +1375,14 @@ function createTaskId(prefix) {
 
 function taskMessage(row) {
   if (row.currentKey) return row.currentKey
-  if (row.message) return ensureBilingualText(row.message, '状态更新')
+  if (row.message) return extractTextBeforeSeparator(row.message)
   return PENDING_STATUS_LABEL
 }
 
-function ensureBilingualText(text, fallbackChinese) {
+function extractTextBeforeSeparator(text) {
   if (!text) return ''
-  const parts = text.split(' / ')
-  if (parts.length >= 2 && /[\u4e00-\u9fff]/.test(parts.slice(1).join(' / '))) {
-    return text
-  }
-  return `${text} / ${fallbackChinese}`
+  const separatorIndex = text.indexOf(' / ')
+  return separatorIndex === -1 ? text : text.slice(0, separatorIndex)
 }
 
 function formatSize(bytes) {

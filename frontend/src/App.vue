@@ -10,14 +10,14 @@
             <el-icon :size="20"><Files /></el-icon>
           </div>
           <div class="brand-copy">
-            <p class="brand-eyebrow">Kipup workspace / Kipup 存储工作台</p>
+            <p class="brand-eyebrow">Kipup workspace</p>
             <h1 class="brand-title">S3 storage, shaped with calmer typography and steadier rhythm.</h1>
-            <p class="brand-subtitle">让 S3 管理更安静，也让浏览、协作与分享更有秩序</p>
+            <p class="brand-subtitle">Quiet S3 management for browsing, collaboration, and sharing.</p>
           </div>
         </div>
         <div class="brand-meta">
           <p>Browse buckets, move files, and share uploads from one quiet control surface.</p>
-          <p>在一个更克制的界面里完成 Bucket 浏览、文件流转与上传分享。</p>
+          <p>Keep bucket browsing, transfers, and upload sharing organized in one focused workspace.</p>
         </div>
       </header>
       <main class="app-main">

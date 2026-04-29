@@ -2,7 +2,7 @@
   <div class="upload-page">
     <div class="upload-card">
       <div class="upload-shell-copy">
-        <p class="upload-shell-eyebrow">Kipup shared file portal / Kipup 文件共享入口</p>
+        <p class="upload-shell-eyebrow">Kipup shared file portal</p>
         <h1 class="upload-shell-title">{{ heroTitle }}</h1>
         <p class="upload-shell-subtitle">{{ heroSubtitle }}</p>
       </div>
@@ -12,12 +12,12 @@
       </div>
 
       <p v-if="targetFilename" class="upload-hint">
-        Shared file / 共享文件：<strong>{{ targetFilename }}</strong>
+        Shared file: <strong>{{ targetFilename }}</strong>
       </p>
 
       <div v-if="canDownload && !expired" class="download-actions">
         <el-button class="download-btn" @click="downloadFile">
-          Download current file / 下载当前文件
+          Download current file
         </el-button>
       </div>
 
@@ -32,7 +32,7 @@
           @click="triggerFileInput"
         >
           <el-icon :size="48" color="#201912"><UploadFilled /></el-icon>
-          <p>Drop a file here or <strong>click</strong> to select / 拖拽文件到这里，或点击选择</p>
+          <p>Drop a file here or <strong>click</strong> to select</p>
         </div>
         <input ref="fileInputRef" type="file" style="display:none" @change="onFileChange" />
 
@@ -58,20 +58,20 @@
           class="upload-btn"
           @click="startUpload"
         >
-          Upload / 上传
+          Upload
         </el-button>
       </template>
 
       <!-- Success state -->
       <div v-if="done" class="result result--success">
         <el-icon :size="48" color="#67c23a"><CircleCheck /></el-icon>
-        <p>File uploaded successfully. / 文件上传成功。</p>
+        <p>File uploaded successfully.</p>
       </div>
 
       <!-- Expired / invalid link state -->
       <div v-if="expired" class="result result--error">
         <el-icon :size="48" color="#f56c6c"><CircleClose /></el-icon>
-        <p>This shared link is invalid or has expired. / 共享链接无效或已过期。</p>
+        <p>This shared link is invalid or has expired.</p>
       </div>
 
       <!-- Error message -->
@@ -102,19 +102,19 @@ const fileInputRef = ref(null)
 const canUpload = computed(() => Boolean(presignedUrl.value))
 const canDownload = computed(() => Boolean(downloadUrl.value))
 const heroTitle = computed(() => {
-  if (canUpload.value && canDownload.value) return 'Download or upload a file / 下载或上传文件'
-  if (canDownload.value) return 'Download a file / 下载文件'
-  return 'Upload a file / 上传文件'
+  if (canUpload.value && canDownload.value) return 'Download or upload a file'
+  if (canDownload.value) return 'Download a file'
+  return 'Upload a file'
 })
 const heroSubtitle = computed(() => {
-  if (canUpload.value && canDownload.value) return 'One shared page for both directions, with the same link expiry window. / 同一个共享页面，同时支持下载与上传，并沿用相同的链接有效期。'
-  if (canDownload.value) return 'This shared page is ready for downloading within the link expiry window. / 该共享页面可在链接有效期内用于下载。'
-  return 'This shared page is ready for uploading within the link expiry window. / 该共享页面可在链接有效期内用于上传。'
+  if (canUpload.value && canDownload.value) return 'One shared page for both directions, with the same link expiry window.'
+  if (canDownload.value) return 'This shared page is ready for downloading within the link expiry window.'
+  return 'This shared page is ready for uploading within the link expiry window.'
 })
 const cardTitle = computed(() => {
-  if (canUpload.value && canDownload.value) return 'File download & upload / 文件下载与上传'
-  if (canDownload.value) return 'File download / 文件下载'
-  return 'File upload / 文件上传'
+  if (canUpload.value && canDownload.value) return 'File download & upload'
+  if (canDownload.value) return 'File download'
+  return 'File upload'
 })
 
 onMounted(() => {
@@ -128,7 +128,7 @@ onMounted(() => {
 
 function downloadFile() {
   if (!downloadUrl.value) {
-    errorMsg.value = 'Download link is unavailable. / 下载链接不可用。'
+    errorMsg.value = 'Download link is unavailable.'
     return
   }
   const link = document.createElement('a')
@@ -171,7 +171,7 @@ async function startUpload() {
     if (e.status === 403 || e.status === 401) {
       expired.value = true
     } else {
-      errorMsg.value = e.message || 'Upload failed. The link may have expired. / 上传失败，链接可能已过期。'
+      errorMsg.value = e.message || 'Upload failed. The link may have expired.'
     }
   } finally {
     uploading.value = false
@@ -194,12 +194,12 @@ function uploadWithProgress(url, file, filename) {
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve()
       } else {
-        const err = new Error(`Upload failed (HTTP ${xhr.status}) / 上传失败 (HTTP ${xhr.status})`)
+        const err = new Error(`Upload failed (HTTP ${xhr.status})`)
         err.status = xhr.status
         reject(err)
       }
     }
-    xhr.onerror = () => reject(new Error('Network error during upload / 上传过程中网络异常'))
+    xhr.onerror = () => reject(new Error('Network error during upload'))
     if (file.type) xhr.setRequestHeader('Content-Type', file.type)
     xhr.send(file)
   })
