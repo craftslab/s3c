@@ -1140,10 +1140,14 @@ async function generateDownloadLinkAction() {
       generateUploadLink(currentBucket.value, key, downloadLinkExpiry.value)
     ])
     if (downloadResult.status === 'rejected') {
-      throw new Error('Failed to create download link / 下载链接创建失败')
+      throw new Error(
+        `Failed to create download link / 下载链接创建失败：${downloadResult.reason?.response?.data?.error || downloadResult.reason?.message || 'unknown error'}`
+      )
     }
     if (uploadResult.status === 'rejected') {
-      throw new Error('Failed to create upload link / 上传链接创建失败')
+      throw new Error(
+        `Failed to create upload link / 上传链接创建失败：${uploadResult.reason?.response?.data?.error || uploadResult.reason?.message || 'unknown error'}`
+      )
     }
     const downloadData = downloadResult.value.data
     const uploadData = uploadResult.value.data
