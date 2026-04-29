@@ -81,6 +81,16 @@ func (s *Service) ListTasks() []Task {
 	return state.Tasks
 }
 
+func (s *Service) GetTask(id string) (Task, bool) {
+	state := s.store.snapshot()
+	for _, task := range state.Tasks {
+		if task.ID == id {
+			return task, true
+		}
+	}
+	return Task{}, false
+}
+
 func (s *Service) ListHistory() []HistoryEntry {
 	state := s.store.snapshot()
 	return state.History

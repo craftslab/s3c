@@ -5,7 +5,7 @@ A lightweight **Go + Vue 3** web application for browsing, uploading and downloa
 ## Features
 
 - 📁 Browse buckets and folders in a clean file-browser UI
-- ⬆️ **Streaming upload** of large files – files are piped directly from the browser to S3 without buffering to disk
+- ⬆️ **Batch upload** of files and folders with per-item progress, resumable multipart transfer, and task tracking
 - ⬇️ **Streaming download** of large files – objects are piped from S3 straight to the browser
 - 🔗 **Presigned URLs** – generate time-limited download or upload links shareable without credentials (configurable expiry, default 24 h, max 7 days)
 - 🪣 Create / delete buckets
@@ -105,6 +105,11 @@ npm run dev
 | GET | `/api/v1/objects/:bucket?prefix=` | List objects / folders |
 | GET | `/api/v1/objects/:bucket/*key` | Download object (streaming) |
 | POST | `/api/v1/objects/:bucket?prefix=` | Upload files (multipart streaming) |
+| POST | `/api/v1/uploads/:bucket/resumable/init?prefix=` | Initialize a resumable multipart upload |
+| GET | `/api/v1/uploads/:bucket/resumable/status?prefix=&key=&uploadId=` | Query uploaded parts for resume |
+| PUT | `/api/v1/uploads/:bucket/resumable/part?prefix=&key=&uploadId=&partNumber=` | Upload a resumable chunk |
+| POST | `/api/v1/uploads/:bucket/resumable/complete?prefix=` | Complete a resumable multipart upload |
+| DELETE | `/api/v1/uploads/:bucket/resumable?prefix=&key=&uploadId=` | Abort a resumable multipart upload |
 | DELETE | `/api/v1/objects/:bucket/*key` | Delete object or folder (recursive) |
 | GET | `/api/v1/search/:bucket` | Search objects by prefix/name/size/time filters |
 | POST | `/api/v1/operations/:bucket/download` | Download selected files/folders as a ZIP |

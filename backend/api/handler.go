@@ -106,6 +106,23 @@ func buildUploadObjectKey(prefix, name string) (string, error) {
 	return cleanPrefix + "/" + cleanName, nil
 }
 
+func uploadedKeysFromTask(task app.Task) []string {
+	seen := make(map[string]struct{}, len(task.Items))
+	keys := make([]string, 0, len(task.Items))
+	for _, item := range task.Items {
+		if item.Status != "uploaded" || item.SourceKey == "" {
+			continue
+		}
+		if _, ok := seen[item.SourceKey]; ok {
+			continue
+		}
+		seen[item.SourceKey] = struct{}{}
+		keys = append(keys, item.SourceKey)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 func actorFromRequest(c *gin.Context) string {
 	for _, key := range []string{"X-User", "X-Forwarded-User", "X-Remote-User"} {
 		if value := strings.TrimSpace(c.GetHeader(key)); value != "" {
@@ -455,9 +472,15 @@ func (h *Handler) CompleteResumableUpload(c *gin.Context) {
 	completedItems := max(req.CompletedItems, 1)
 	h.service.UpdateTaskProgress(taskID, key, completedItems, app.TaskItem{SourceKey: key, Status: "uploaded"})
 	if completedItems >= max(req.TotalItems, 1) {
+		keys := []string{key}
+		if task, ok := h.service.GetTask(taskID); ok {
+			if uploaded := uploadedKeysFromTask(task); len(uploaded) > 0 {
+				keys = uploaded
+			}
+		}
 		h.service.FinishTask(taskID, app.TaskCompleted, fmt.Sprintf("uploaded %d file(s)", completedItems))
-		h.service.RecordHistory("object.upload", bucket, actor, "success", "upload completed", []string{key}, map[string]string{"taskId": taskID, "mode": "resumable"})
-		h.service.EmitEvent(app.Event{Type: "object.uploaded", Bucket: bucket, Actor: actor, Keys: []string{key}, Metadata: map[string]string{"taskId": taskID}})
+		h.service.RecordHistory("object.upload", bucket, actor, "success", "upload completed", keys, map[string]string{"taskId": taskID, "mode": "resumable"})
+		h.service.EmitEvent(app.Event{Type: "object.uploaded", Bucket: bucket, Actor: actor, Keys: keys, Metadata: map[string]string{"taskId": taskID}})
 	}
 	c.JSON(http.StatusOK, gin.H{"taskId": taskID, "key": key})
 }
