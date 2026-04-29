@@ -1,13 +1,18 @@
 <template>
   <div class="upload-page">
     <div class="upload-card">
+      <div class="upload-shell-copy">
+        <p class="upload-shell-eyebrow">Kipup upload portal / Kipup 上传入口</p>
+        <h1 class="upload-shell-title">Drop in a file and ship it with confidence.</h1>
+        <p class="upload-shell-subtitle">A quieter upload flow, with calmer copy in both English and Chinese. / 用更统一的中英文文案，完成一次更从容的上传。</p>
+      </div>
       <div class="upload-card-header">
-        <el-icon :size="28" color="#409eff"><UploadFilled /></el-icon>
-        <span class="upload-card-title">File Upload</span>
+        <el-icon :size="28" color="#201912"><UploadFilled /></el-icon>
+        <span class="upload-card-title">File upload / 文件上传</span>
       </div>
 
       <p v-if="targetFilename" class="upload-hint">
-        Upload destination: <strong>{{ targetFilename }}</strong>
+        Upload destination / 上传目标：<strong>{{ targetFilename }}</strong>
       </p>
 
       <template v-if="!done && !expired">
@@ -20,8 +25,8 @@
           @drop.prevent="onDrop"
           @click="triggerFileInput"
         >
-          <el-icon :size="48" color="#409eff"><UploadFilled /></el-icon>
-          <p>Drop a file here or <strong>click</strong> to select</p>
+          <el-icon :size="48" color="#201912"><UploadFilled /></el-icon>
+          <p>Drop a file here or <strong>click</strong> to select / 拖拽文件到这里，或点击选择</p>
         </div>
         <input ref="fileInputRef" type="file" style="display:none" @change="onFileChange" />
 
@@ -47,20 +52,20 @@
           class="upload-btn"
           @click="startUpload"
         >
-          Upload
+          Upload / 上传
         </el-button>
       </template>
 
       <!-- Success state -->
       <div v-if="done" class="result result--success">
         <el-icon :size="48" color="#67c23a"><CircleCheck /></el-icon>
-        <p>File uploaded successfully!</p>
+        <p>File uploaded successfully. / 文件上传成功。</p>
       </div>
 
       <!-- Expired / invalid link state -->
       <div v-if="expired" class="result result--error">
         <el-icon :size="48" color="#f56c6c"><CircleClose /></el-icon>
-        <p>This upload link is invalid or has expired.</p>
+        <p>This upload link is invalid or has expired. / 上传链接无效或已过期。</p>
       </div>
 
       <!-- Error message -->
@@ -126,7 +131,7 @@ async function startUpload() {
     if (e.status === 403 || e.status === 401) {
       expired.value = true
     } else {
-      errorMsg.value = e.message || 'Upload failed. The link may have expired.'
+      errorMsg.value = e.message || 'Upload failed. The link may have expired. / 上传失败，链接可能已过期。'
     }
   } finally {
     uploading.value = false
@@ -149,12 +154,12 @@ function uploadWithProgress(url, file, filename) {
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve()
       } else {
-        const err = new Error(`Upload failed: HTTP ${xhr.status}`)
+        const err = new Error(`Upload failed (HTTP ${xhr.status}) / 上传失败 (HTTP ${xhr.status})`)
         err.status = xhr.status
         reject(err)
       }
     }
-    xhr.onerror = () => reject(new Error('Network error during upload'))
+    xhr.onerror = () => reject(new Error('Network error during upload / 上传过程中网络异常'))
     if (file.type) xhr.setRequestHeader('Content-Type', file.type)
     xhr.send(file)
   })
@@ -179,54 +184,92 @@ function formatSize(bytes) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f5f7fa;
-  padding: 24px;
+  background:
+    radial-gradient(circle at top, rgba(237, 226, 210, 0.82), transparent 42%),
+    #f4efe6;
+  padding: 32px;
   box-sizing: border-box;
 }
 
 .upload-card {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  padding: 40px 48px;
+  background: rgba(255, 252, 245, 0.88);
+  border: 1px solid rgba(69, 54, 42, 0.12);
+  border-radius: 30px;
+  box-shadow: 0 24px 80px rgba(59, 43, 31, 0.08);
+  padding: 48px 52px;
   width: 100%;
-  max-width: 520px;
+  max-width: 660px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
+}
+
+.upload-shell-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.upload-shell-eyebrow {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8b7f72;
+}
+
+.upload-shell-title {
+  margin: 0;
+  font-family: Iowan Old Style, Palatino Linotype, Book Antiqua, Georgia, serif;
+  font-size: 42px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  color: #201912;
+}
+
+.upload-shell-subtitle {
+  max-width: 520px;
+  margin: 2px 0 0;
+  color: #6f6256;
+  font-size: 16px;
+  line-height: 1.7;
 }
 
 .upload-card-header {
   display: flex;
   align-items: center;
   gap: 10px;
+  padding-top: 10px;
 }
 
 .upload-card-title {
   font-size: 20px;
   font-weight: 600;
-  color: #303133;
+  color: #201912;
 }
 
 .upload-hint {
   margin: 0;
   font-size: 14px;
-  color: #606266;
+  color: #5c5146;
 }
 
 .drop-zone {
-  border: 2px dashed #c0c4cc;
-  border-radius: 8px;
-  padding: 36px 24px;
+  border: 1px dashed rgba(69, 54, 42, 0.22);
+  border-radius: 24px;
+  padding: 42px 24px;
   text-align: center;
   cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
+  background: rgba(237, 226, 210, 0.24);
+  transition: 0.2s ease;
 }
 
 .drop-zone:hover,
 .drop-zone--over {
-  border-color: #409eff;
-  background: #ecf5ff;
+  border-color: rgba(32, 25, 18, 0.28);
+  background: rgba(237, 226, 210, 0.46);
 }
 
 .drop-zone--disabled {
@@ -236,8 +279,8 @@ function formatSize(bytes) {
 
 .drop-zone p {
   margin: 8px 0 0;
-  color: #606266;
-  font-size: 14px;
+  color: #5c5146;
+  font-size: 15px;
 }
 
 .file-info {
@@ -245,10 +288,11 @@ function formatSize(bytes) {
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  color: #303133;
-  padding: 8px 12px;
-  background: #f5f7fa;
-  border-radius: 6px;
+  color: #201912;
+  padding: 12px 14px;
+  background: rgba(237, 226, 210, 0.28);
+  border: 1px solid rgba(69, 54, 42, 0.08);
+  border-radius: 18px;
 }
 
 .file-name {
@@ -259,12 +303,12 @@ function formatSize(bytes) {
 }
 
 .file-size {
-  color: #909399;
+  color: #8b7f72;
   flex-shrink: 0;
 }
 
 .progress-bar {
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
 .upload-btn {
@@ -283,12 +327,16 @@ function formatSize(bytes) {
   margin: 0;
   font-size: 15px;
   font-weight: 500;
-  color: #303133;
+  color: #201912;
 }
 
 .error-msg {
   margin: 0;
   font-size: 13px;
   color: #f56c6c;
+}
+
+:deep(.el-progress-bar__inner) {
+  background: linear-gradient(90deg, #201912, #5d4836);
 }
 </style>
