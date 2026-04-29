@@ -12,7 +12,7 @@
           <div class="brand-copy">
             <p class="brand-eyebrow">Kipup workspace / Kipup 存储工作台</p>
             <h1 class="brand-title">S3 storage, shaped with calmer typography and steadier rhythm.</h1>
-            <p class="brand-subtitle">让 S3 管理更安静，也让浏览、协作与分享更有秩序。</p>
+            <p class="brand-subtitle">让 S3 管理更安静，也让浏览、协作与分享更有秩序</p>
           </div>
         </div>
         <div class="brand-meta">

@@ -225,7 +225,7 @@ function formatSize(bytes) {
   font-size: 42px;
   font-weight: 600;
   letter-spacing: -0.04em;
-  line-height: 0.98;
+  line-height: 1.1;
   color: #201912;
 }
 

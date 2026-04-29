@@ -328,7 +328,7 @@
         <el-table-column label="Progress / 进度" min-width="220">
           <template #default="{ row }">
             <el-progress :percentage="taskProgress(row)" :status="row.status === 'failed' ? 'exception' : row.status === 'completed' ? 'success' : undefined" />
-            <div class="small-text">{{ row.completedItems }}/{{ row.totalItems }} · {{ row.currentKey || row.message || 'pending / 待处理' }}</div>
+            <div class="small-text">{{ row.completedItems }}/{{ row.totalItems }} · {{ row.currentKey || row.message || pendingStatusLabel }}</div>
           </template>
         </el-table-column>
         <el-table-column prop="status" label="Status / 状态" width="110" />
@@ -549,6 +549,7 @@ const webhookEvents = [
   'cleanup.completed'
 ]
 const webhookForm = ref({ name: '', url: '', events: ['object.uploaded'], secret: '', enabled: true })
+const pendingStatusLabel = 'pending / 待处理'
 
 const workspaceCopy = {
   default: {
@@ -1517,7 +1518,7 @@ function formatDate(value) {
   font-size: 42px;
   font-weight: 600;
   letter-spacing: -0.04em;
-  line-height: 0.98;
+  line-height: 1.1;
   color: #201912;
 }
 
