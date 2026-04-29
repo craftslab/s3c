@@ -1,8 +1,8 @@
-# s3c – S3 Cloud Browser
+# kipup – Efficient S3 Storage & Download
 
 [English](README.md) | [中文](README_cn.md)
 
-A lightweight **Go + Vue 3** web application for browsing, uploading and downloading files stored in any S3-compatible object store (MinIO, AWS S3, etc.).
+**kipup** — a variation of “keep up” — is a lightweight **Go + Vue 3** web application for efficient S3 storage, downloads, and interactive collaboration scenarios across text, voice, video, and more.
 
 ## Features
 
@@ -33,8 +33,8 @@ Browser  ──HTTP──▶  nginx (frontend)
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/craftslab/s3c.git
-cd s3c
+git clone https://github.com/craftslab/kipup.git
+cd kipup
 
 # 2. (Optional) customise credentials
 cp .env.example .env
@@ -49,7 +49,7 @@ open http://localhost:3000
 
 | Service | URL |
 |---|---|
-| S3C Web UI | http://localhost:3000 |
+| Kipup Web UI | http://localhost:3000 |
 | Go API | http://localhost:8080 |
 | MinIO Console | http://localhost:9001 |
 
@@ -89,7 +89,7 @@ npm run dev
 | `LISTEN_ADDR` | `:8080` | Backend listen address |
 | `S3_ENDPOINT` | `localhost:9000` | S3/MinIO endpoint (host:port) |
 | `S3_PUBLIC_URL` | *(empty)* | Public base URL used in returned presigned links (e.g. `https://s3.example.com`) |
-| `PUBLIC_BASE_URL` | *(empty)* | Public base URL of the S3C web entry used to build shareable proxy download links (e.g. `https://s3c.example.com`) |
+| `PUBLIC_BASE_URL` | *(empty)* | Public base URL of the Kipup web entry used to build shareable proxy download links (e.g. `https://kipup.example.com`) |
 | `S3_ACCESS_KEY` | `minioadmin` | S3 access key |
 | `S3_SECRET_KEY` | `minioadmin` | S3 secret key |
 | `S3_USE_SSL` | `false` | Use HTTPS for S3 connection |

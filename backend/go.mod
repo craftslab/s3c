@@ -1,4 +1,4 @@
-module github.com/craftslab/s3c/backend
+module github.com/craftslab/kipup/backend
 
 go 1.24.0
 

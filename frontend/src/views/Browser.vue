@@ -527,7 +527,8 @@ const uploadStats = computed(() => {
 })
 
 const RESUMABLE_PART_SIZE = 8 * 1024 * 1024
-const RESUMABLE_UPLOAD_STORAGE_KEY = 's3c-resumable-upload-sessions-v1'
+const RESUMABLE_UPLOAD_STORAGE_KEY = 'kipup-resumable-upload-sessions-v1'
+const LEGACY_RESUMABLE_UPLOAD_STORAGE_KEY = 's3c-resumable-upload-sessions-v1'
 
 let poller = null
 
@@ -935,7 +936,11 @@ function refreshUploadProgress() {
 
 function readPersistedUploadSessions() {
   try {
-    return JSON.parse(window.localStorage.getItem(RESUMABLE_UPLOAD_STORAGE_KEY) || '{}')
+    const current = window.localStorage.getItem(RESUMABLE_UPLOAD_STORAGE_KEY)
+    if (current) {
+      return JSON.parse(current)
+    }
+    return JSON.parse(window.localStorage.getItem(LEGACY_RESUMABLE_UPLOAD_STORAGE_KEY) || '{}')
   } catch {
     return {}
   }
@@ -943,6 +948,7 @@ function readPersistedUploadSessions() {
 
 function writePersistedUploadSessions(sessions) {
   window.localStorage.setItem(RESUMABLE_UPLOAD_STORAGE_KEY, JSON.stringify(sessions))
+  window.localStorage.removeItem(LEGACY_RESUMABLE_UPLOAD_STORAGE_KEY)
 }
 
 function getPersistedUploadSession(id) {

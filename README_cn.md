@@ -1,8 +1,8 @@
-# s3c – S3 云浏览器
+# kipup – 高效 S3 存储与下载
 
 [English](README.md) | [中文](README_cn.md)
 
-一个轻量级的 **Go + Vue 3** Web 应用，用于浏览、上传和下载存储在任意兼容 S3 的对象存储（如 MinIO、AWS S3 等）中的文件。
+**kipup** 是 **keep up** 的变体，指代面向文字、语音、视频等互动协作场景的高效 S3 存储与下载工具。它是一个轻量级的 **Go + Vue 3** Web 应用，用于浏览、上传和下载存储在任意兼容 S3 的对象存储（如 MinIO、AWS S3 等）中的文件。
 
 ## 功能特性
 
@@ -33,8 +33,8 @@
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/craftslab/s3c.git
-cd s3c
+git clone https://github.com/craftslab/kipup.git
+cd kipup
 
 # 2.（可选）自定义凭证
 cp .env.example .env
@@ -49,7 +49,7 @@ open http://localhost:3000
 
 | 服务 | URL |
 |---|---|
-| S3C Web UI | http://localhost:3000 |
+| Kipup Web UI | http://localhost:3000 |
 | Go API | http://localhost:8080 |
 | MinIO Console | http://localhost:9001 |
 
@@ -89,7 +89,7 @@ npm run dev
 | `LISTEN_ADDR` | `:8080` | 后端监听地址 |
 | `S3_ENDPOINT` | `localhost:9000` | S3/MinIO 端点（host:port） |
 | `S3_PUBLIC_URL` | *(空)* | 返回的预签名链接中使用的 S3 公网基础 URL（例如 `https://s3.example.com`） |
-| `PUBLIC_BASE_URL` | *(空)* | 用于构建可分享代理下载链接的 S3C Web 入口公网基础 URL（例如 `https://s3c.example.com`） |
+| `PUBLIC_BASE_URL` | *(空)* | 用于构建可分享代理下载链接的 Kipup Web 入口公网基础 URL（例如 `https://kipup.example.com`） |
 | `S3_ACCESS_KEY` | `minioadmin` | S3 访问密钥 |
 | `S3_SECRET_KEY` | `minioadmin` | S3 密钥 |
 | `S3_USE_SSL` | `false` | 是否使用 HTTPS 连接 S3 |

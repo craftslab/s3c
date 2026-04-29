@@ -29,7 +29,7 @@ func Load() *Config {
 		S3PublicURL: getEnv("S3_PUBLIC_URL", ""),
 		// PublicBaseURL is the externally reachable base URL of this app (nginx entry),
 		// used to construct shareable proxy links like /api/download.
-		// Example: http://47.88.100.1:3000 or https://s3c.example.com
+		// Example: http://47.88.100.1:3000 or https://kipup.example.com
 		PublicBaseURL:         getEnv("PUBLIC_BASE_URL", ""),
 		S3AccessKey:           getEnv("S3_ACCESS_KEY", "minioadmin"),
 		S3SecretKey:           getEnv("S3_SECRET_KEY", "minioadmin"),

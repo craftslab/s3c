@@ -1,5 +1,5 @@
 # Ignore build artefacts and dependencies
-backend/s3c-backend
+backend/kipup-backend
 
 frontend/node_modules/
 frontend/dist/

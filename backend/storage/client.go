@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/craftslab/s3c/backend/config"
+	"github.com/craftslab/kipup/backend/config"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )

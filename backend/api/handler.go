@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/craftslab/s3c/backend/app"
-	"github.com/craftslab/s3c/backend/storage"
+	"github.com/craftslab/kipup/backend/app"
+	"github.com/craftslab/kipup/backend/storage"
 	"github.com/gin-gonic/gin"
 	"github.com/minio/minio-go/v7"
 )

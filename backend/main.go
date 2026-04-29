@@ -5,10 +5,10 @@ import (
 	"log"
 	"time"
 
-	"github.com/craftslab/s3c/backend/api"
-	"github.com/craftslab/s3c/backend/app"
-	"github.com/craftslab/s3c/backend/config"
-	"github.com/craftslab/s3c/backend/storage"
+	"github.com/craftslab/kipup/backend/api"
+	"github.com/craftslab/kipup/backend/app"
+	"github.com/craftslab/kipup/backend/config"
+	"github.com/craftslab/kipup/backend/storage"
 )
 
 func main() {

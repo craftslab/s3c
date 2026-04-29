@@ -4,9 +4,9 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/craftslab/s3c/backend/app"
-	"github.com/craftslab/s3c/backend/config"
-	"github.com/craftslab/s3c/backend/storage"
+	"github.com/craftslab/kipup/backend/app"
+	"github.com/craftslab/kipup/backend/config"
+	"github.com/craftslab/kipup/backend/storage"
 	cors "github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )

@@ -30,8 +30,8 @@ services:
       # Externally reachable base URL used in returned presigned links.
       # Set this in your .env, e.g. https://s3.example.com
       S3_PUBLIC_URL: "${S3_PUBLIC_URL:-}"
-      # Public base URL of the S3C web entry used to build shareable proxy links.
-      # Set this in your .env, e.g. http://47.88.100.1:3000 or https://s3c.example.com
+      # Public base URL of the Kipup web entry used to build shareable proxy links.
+      # Set this in your .env, e.g. http://47.88.100.1:3000 or https://kipup.example.com
       PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-}"
       S3_ACCESS_KEY: "${S3_ACCESS_KEY:-minioadmin}"
       S3_SECRET_KEY: "${S3_SECRET_KEY:-minioadmin}"

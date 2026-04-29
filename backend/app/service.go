@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/craftslab/s3c/backend/storage"
+	"github.com/craftslab/kipup/backend/storage"
 	"github.com/minio/minio-go/v7"
 )
 
@@ -245,7 +245,7 @@ func (s *Service) deliverWebhook(hook Webhook, evt Event) {
 		if hook.Secret != "" {
 			mac := hmac.New(sha256.New, []byte(hook.Secret))
 			_, _ = mac.Write(body)
-			req.Header.Set("X-S3C-Signature", hex.EncodeToString(mac.Sum(nil)))
+			req.Header.Set("X-Kipup-Signature", hex.EncodeToString(mac.Sum(nil)))
 		}
 		resp, reqErr := s.httpClient.Do(req)
 		if reqErr != nil {

@@ -7,7 +7,7 @@
       <el-header class="app-header">
         <div class="logo">
           <el-icon :size="22"><Files /></el-icon>
-          <span>S3C – S3 Cloud Browser</span>
+          <span>Kipup – Efficient S3 Storage & Download</span>
         </div>
       </el-header>
       <el-main class="app-main">
