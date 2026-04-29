@@ -33,7 +33,6 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	var base *url.URL
 	ready := false
 	if raw := strings.TrimSpace(cfg.S3PublicURL); raw != "" {
-		// Accept host:port too.
 		if !strings.Contains(raw, "://") {
 			if cfg.S3UseSSL {
 				raw = "https://" + raw
@@ -60,7 +59,6 @@ func (c *Client) rewritePresigned(raw string) string {
 	}
 	u.Scheme = c.publicBase.Scheme
 	u.Host = c.publicBase.Host
-	// Keep original path and query intact (signature is in query, not host).
 	return u.String()
 }
 
@@ -79,13 +77,26 @@ func (c *Client) RemoveBucket(ctx context.Context, bucket string) error {
 	return c.mc.RemoveBucket(ctx, bucket)
 }
 
-// ListObjects lists objects (and common-prefix "directories") under a prefix.
-// It uses delimiter "/" so sub-folder entries are returned as directory stubs.
+// ListObjects lists objects (and common-prefix directories) under a prefix.
 func (c *Client) ListObjects(ctx context.Context, bucket, prefix string) []minio.ObjectInfo {
 	var items []minio.ObjectInfo
 	for obj := range c.mc.ListObjects(ctx, bucket, minio.ListObjectsOptions{
 		Prefix:    prefix,
 		Recursive: false,
+	}) {
+		if obj.Err == nil {
+			items = append(items, obj)
+		}
+	}
+	return items
+}
+
+// ListObjectsRecursive lists all objects recursively under a prefix.
+func (c *Client) ListObjectsRecursive(ctx context.Context, bucket, prefix string) []minio.ObjectInfo {
+	var items []minio.ObjectInfo
+	for obj := range c.mc.ListObjects(ctx, bucket, minio.ListObjectsOptions{
+		Prefix:    prefix,
+		Recursive: true,
 	}) {
 		if obj.Err == nil {
 			items = append(items, obj)
@@ -100,12 +111,17 @@ func (c *Client) GetObject(ctx context.Context, bucket, key string) (*minio.Obje
 }
 
 // PutObjectStream uploads an object by streaming from reader.
-// Pass size = -1 when the content length is unknown; the SDK will use
-// multipart upload automatically for large payloads.
 func (c *Client) PutObjectStream(ctx context.Context, bucket, key string, reader io.Reader, size int64, contentType string) (minio.UploadInfo, error) {
-	return c.mc.PutObject(ctx, bucket, key, reader, size, minio.PutObjectOptions{
-		ContentType: contentType,
-	})
+	return c.mc.PutObject(ctx, bucket, key, reader, size, minio.PutObjectOptions{ContentType: contentType})
+}
+
+// CopyObject copies an object within the same bucket.
+func (c *Client) CopyObject(ctx context.Context, bucket, sourceKey, targetKey string) error {
+	_, err := c.mc.CopyObject(ctx,
+		minio.CopyDestOptions{Bucket: bucket, Object: targetKey},
+		minio.CopySrcOptions{Bucket: bucket, Object: sourceKey},
+	)
+	return err
 }
 
 // RemoveObject deletes a single object.
@@ -114,7 +130,6 @@ func (c *Client) RemoveObject(ctx context.Context, bucket, key string) error {
 }
 
 // PresignedGetObject returns a presigned URL for downloading an object.
-// The URL expires after the given duration (max 7 days for most S3-compatible stores).
 func (c *Client) PresignedGetObject(ctx context.Context, bucket, key string, expiry time.Duration) (string, error) {
 	u, err := c.mc.PresignedGetObject(ctx, bucket, key, expiry, url.Values{})
 	if err != nil {
@@ -124,7 +139,6 @@ func (c *Client) PresignedGetObject(ctx context.Context, bucket, key string, exp
 }
 
 // PresignedPutObject returns a presigned URL for uploading an object.
-// The URL expires after the given duration (max 7 days for most S3-compatible stores).
 func (c *Client) PresignedPutObject(ctx context.Context, bucket, key string, expiry time.Duration) (string, error) {
 	u, err := c.mc.PresignedPutObject(ctx, bucket, key, expiry)
 	if err != nil {
@@ -138,10 +152,7 @@ func (c *Client) RemoveObjectsWithPrefix(ctx context.Context, bucket, prefix str
 	objectsCh := make(chan minio.ObjectInfo)
 	go func() {
 		defer close(objectsCh)
-		for obj := range c.mc.ListObjects(ctx, bucket, minio.ListObjectsOptions{
-			Prefix:    prefix,
-			Recursive: true,
-		}) {
+		for obj := range c.mc.ListObjects(ctx, bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true}) {
 			if obj.Err != nil {
 				continue
 			}
