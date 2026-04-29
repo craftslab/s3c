@@ -135,7 +135,7 @@ Both presigned endpoints accept an optional `expiry` query parameter (seconds).
 |---|---|---|---|
 | `expiry` | `86400` (24 h) | `604800` (7 days) | Link validity period in seconds |
 
-**Download link** – returns a presigned `GET` URL that anyone can use to download the object without credentials:
+**Download link** – returns a presigned `GET` URL that anyone can use to download the object without credentials, plus a same-expiry upload URL that the web UI can embed into a shared download/upload page:
 
 ```
 GET /api/v1/presign/download/:bucket/*key?expiry=3600
@@ -143,7 +143,9 @@ GET /api/v1/presign/download/:bucket/*key?expiry=3600
 
 ```json
 {
-  "url": "https://…/bucket/key?X-Amz-Expires=3600&…",
+  "url": "https://…/download-or-object-link",
+  "download_url": "https://…/bucket/key?X-Amz-Expires=3600&…",
+  "upload_url": "https://…/bucket/key?X-Amz-Expires=3600&…",
   "expires_in": 3600
 }
 ```

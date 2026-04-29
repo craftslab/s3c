@@ -764,17 +764,28 @@ func (h *Handler) GenerateDownloadLink(c *gin.Context) {
 	bucket := c.Param("bucket")
 	key := strings.TrimPrefix(c.Param("key"), "/")
 	expiry := parseExpiry(c)
-	u, err := h.client.PresignedGetObject(c.Request.Context(), bucket, key, expiry)
+	downloadURL, err := h.client.PresignedGetObject(c.Request.Context(), bucket, key, expiry)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	uploadURL, err := h.client.PresignedPutObject(c.Request.Context(), bucket, key, expiry)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	directDownloadURL := downloadURL
 	base := h.resolvePublicBaseURL(c)
 	if base != "" {
 		filename := path.Base(key)
-		u = base + "/api/download?url=" + url.QueryEscape(u) + "&filename=" + url.QueryEscape(filename)
+		downloadURL = base + "/api/download?url=" + url.QueryEscape(downloadURL) + "&filename=" + url.QueryEscape(filename)
 	}
-	c.JSON(http.StatusOK, gin.H{"url": u, "expires_in": int64(expiry.Seconds())})
+	c.JSON(http.StatusOK, gin.H{
+		"url":          downloadURL,
+		"download_url": directDownloadURL,
+		"upload_url":   uploadURL,
+		"expires_in":   int64(expiry.Seconds()),
+	})
 }
 
 func (h *Handler) GenerateUploadLink(c *gin.Context) {

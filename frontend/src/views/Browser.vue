@@ -1066,7 +1066,17 @@ async function generateDownloadLinkAction() {
   generatingDownloadLink.value = true
   try {
     const { data } = await generateDownloadLink(currentBucket.value, downloadLinkTarget.value.key, downloadLinkExpiry.value)
-    downloadLinkUrl.value = data.url
+    const filename = downloadLinkTarget.value.key.split('/').pop() || downloadLinkTarget.value.key
+    if (data.download_url && data.upload_url) {
+      const params = new URLSearchParams({
+        downloadUrl: data.download_url,
+        uploadUrl: data.upload_url,
+        filename
+      })
+      downloadLinkUrl.value = `${window.location.origin}/share?${params.toString()}`
+    } else {
+      downloadLinkUrl.value = data.url
+    }
   } catch (error) {
     ElMessage.error('Failed to generate link: ' + (error.response?.data?.error || error.message))
   } finally {

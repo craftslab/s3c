@@ -3,14 +3,20 @@
     <div class="upload-card">
       <div class="upload-card-header">
         <el-icon :size="28" color="#409eff"><UploadFilled /></el-icon>
-        <span class="upload-card-title">File Upload</span>
+        <span class="upload-card-title">{{ pageTitle }}</span>
       </div>
 
       <p v-if="targetFilename" class="upload-hint">
-        Upload destination: <strong>{{ targetFilename }}</strong>
+        {{ targetLabel }}: <strong>{{ targetFilename }}</strong>
       </p>
 
-      <template v-if="!done && !expired">
+      <div v-if="downloadUrl && !expired" class="download-action">
+        <el-button type="primary" plain class="download-btn" @click="startDownload">
+          Download current file
+        </el-button>
+      </div>
+
+      <template v-if="uploadUrl && !done && !expired">
         <!-- Drop zone -->
         <div
           class="drop-zone"
@@ -60,7 +66,7 @@
       <!-- Expired / invalid link state -->
       <div v-if="expired" class="result result--error">
         <el-icon :size="48" color="#f56c6c"><CircleClose /></el-icon>
-        <p>This upload link is invalid or has expired.</p>
+        <p>This shared link is invalid or has expired.</p>
       </div>
 
       <!-- Error message -->
@@ -70,13 +76,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { UploadFilled, Document, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 
 const route = useRoute()
 
-const presignedUrl = ref('')
+const uploadUrl = ref('')
+const downloadUrl = ref('')
 const targetFilename = ref('')
 
 const selectedFile = ref(null)
@@ -88,10 +95,14 @@ const expired = ref(false)
 const errorMsg = ref('')
 const fileInputRef = ref(null)
 
+const pageTitle = computed(() => (downloadUrl.value ? 'Shared File' : 'File Upload'))
+const targetLabel = computed(() => (downloadUrl.value ? 'Shared file' : 'Upload destination'))
+
 onMounted(() => {
-  presignedUrl.value = route.query.url || ''
+  uploadUrl.value = route.query.uploadUrl || route.query.url || ''
+  downloadUrl.value = route.query.downloadUrl || ''
   targetFilename.value = route.query.filename || ''
-  if (!presignedUrl.value) {
+  if (!uploadUrl.value && !downloadUrl.value) {
     expired.value = true
   }
 })
@@ -114,13 +125,13 @@ function onDrop(e) {
 }
 
 async function startUpload() {
-  if (!selectedFile.value || !presignedUrl.value) return
+  if (!selectedFile.value || !uploadUrl.value) return
   uploading.value = true
   progress.value = 0
   errorMsg.value = ''
 
   try {
-    await uploadWithProgress(presignedUrl.value, selectedFile.value, targetFilename.value)
+    await uploadWithProgress(uploadUrl.value, selectedFile.value, targetFilename.value)
     done.value = true
   } catch (e) {
     if (e.status === 403 || e.status === 401) {
@@ -131,6 +142,13 @@ async function startUpload() {
   } finally {
     uploading.value = false
   }
+}
+
+function startDownload() {
+  if (!downloadUrl.value) return
+  const qs = new URLSearchParams({ url: downloadUrl.value })
+  if (targetFilename.value) qs.set('filename', targetFilename.value)
+  window.location.href = `/api/download?${qs.toString()}`
 }
 
 function uploadWithProgress(url, file, filename) {
@@ -212,6 +230,15 @@ function formatSize(bytes) {
   margin: 0;
   font-size: 14px;
   color: #606266;
+}
+
+.download-action {
+  display: flex;
+  justify-content: center;
+}
+
+.download-btn {
+  width: 100%;
 }
 
 .drop-zone {

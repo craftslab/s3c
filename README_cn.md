@@ -130,7 +130,7 @@ npm run dev
 |---|---|---|---|
 | `expiry` | `86400`（24 小时） | `604800`（7 天） | 链接有效期（秒） |
 
-**下载链接**——返回一个预签名 `GET` URL，任何人都可以在无需凭证的情况下使用它下载对象：
+**下载链接**——返回一个预签名 `GET` URL，任何人都可以在无需凭证的情况下使用它下载对象，同时返回一个相同过期时间的上传 URL，供 Web UI 组装为可下载/可回传的分享页面：
 
 ```
 GET /api/v1/presign/download/:bucket/*key?expiry=3600
@@ -138,7 +138,9 @@ GET /api/v1/presign/download/:bucket/*key?expiry=3600
 
 ```json
 {
-  "url": "https://…/bucket/key?X-Amz-Expires=3600&…",
+  "url": "https://…/download-or-object-link",
+  "download_url": "https://…/bucket/key?X-Amz-Expires=3600&…",
+  "upload_url": "https://…/bucket/key?X-Amz-Expires=3600&…",
   "expires_in": 3600
 }
 ```
