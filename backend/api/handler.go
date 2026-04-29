@@ -774,7 +774,7 @@ func (h *Handler) GenerateDownloadLink(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate upload url: " + err.Error()})
 		return
 	}
-	directDownloadURL := downloadURL
+	presignedDownloadURL := downloadURL
 	base := h.resolvePublicBaseURL(c)
 	if base != "" {
 		filename := path.Base(key)
@@ -782,7 +782,7 @@ func (h *Handler) GenerateDownloadLink(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"url":          downloadURL,
-		"download_url": directDownloadURL,
+		"download_url": presignedDownloadURL,
 		"upload_url":   uploadURL,
 		"expires_in":   int64(expiry.Seconds()),
 	})

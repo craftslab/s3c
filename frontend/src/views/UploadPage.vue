@@ -150,9 +150,6 @@ function startDownload() {
   if (targetFilename.value) qs.set('filename', targetFilename.value)
   const link = document.createElement('a')
   link.href = `/api/download?${qs.toString()}`
-  if (targetFilename.value) {
-    link.download = targetFilename.value
-  }
   document.body.appendChild(link)
   link.click()
   link.remove()
