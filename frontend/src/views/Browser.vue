@@ -219,7 +219,7 @@
           <el-progress :percentage="fileProgress(f)" :status="f.status === 'error' ? 'exception' : f.status === 'done' ? 'success' : undefined" />
           <div class="small-text upload-item-detail">
             <span>{{ formatSize(f.uploadedBytes) }} / {{ formatSize(f.size) }}</span>
-            <span v-if="f.error">{{ extractEnglishText(f.error) }}</span>
+            <span v-if="f.error">{{ extractPrimaryText(f.error) }}</span>
           </div>
         </div>
       </div>
@@ -411,7 +411,7 @@
       </el-table>
       <h4 class="drawer-subtitle">Recent Deliveries</h4>
       <el-table :data="deliveries" size="small">
-        <el-table-column prop="webhook" label="Webhook / Webhook" min-width="130" />
+        <el-table-column prop="webhook" label="Webhook" min-width="130" />
         <el-table-column prop="event" label="Event" min-width="150" />
         <el-table-column prop="status" label="Status" width="100" />
         <el-table-column prop="statusCode" label="HTTP" width="80" />
@@ -1375,14 +1375,14 @@ function createTaskId(prefix) {
 
 function taskMessage(row) {
   if (row.currentKey) return row.currentKey
-  if (row.message) return extractEnglishText(row.message)
+  if (row.message) return extractPrimaryText(row.message)
   return PENDING_STATUS_LABEL
 }
 
-function extractEnglishText(text) {
+function extractPrimaryText(text) {
   if (!text) return ''
-  const [english] = text.split(' / ')
-  return english || text
+  const separatorIndex = text.indexOf(' / ')
+  return separatorIndex === -1 ? text : text.slice(0, separatorIndex)
 }
 
 function formatSize(bytes) {
