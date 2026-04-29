@@ -1,12 +1,14 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/url"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +16,7 @@ import (
 	"github.com/craftslab/s3c/backend/app"
 	"github.com/craftslab/s3c/backend/storage"
 	"github.com/gin-gonic/gin"
+	"github.com/minio/minio-go/v7"
 )
 
 // Handler holds the dependencies for all HTTP handlers.
@@ -48,6 +51,59 @@ func objectItemFromInfo(key string, size int64, modified time.Time, contentType,
 	item.ContentType = contentType
 	item.ETag = etag
 	return item
+}
+
+type resumableUploadInitRequest struct {
+	Key         string `json:"key" binding:"required"`
+	Size        int64  `json:"size"`
+	ContentType string `json:"contentType"`
+	TaskID      string `json:"taskId"`
+	TotalItems  int    `json:"totalItems"`
+}
+
+type resumableUploadPartInfo struct {
+	PartNumber int    `json:"partNumber"`
+	ETag       string `json:"etag"`
+	Size       int64  `json:"size,omitempty"`
+}
+
+type resumableUploadCompleteRequest struct {
+	Key            string                    `json:"key" binding:"required"`
+	UploadID       string                    `json:"uploadId" binding:"required"`
+	ContentType    string                    `json:"contentType"`
+	TaskID         string                    `json:"taskId"`
+	TotalItems     int                       `json:"totalItems"`
+	CompletedItems int                       `json:"completedItems"`
+	Parts          []resumableUploadPartInfo `json:"parts" binding:"required"`
+}
+
+func sanitizeUploadRelativePath(name string) (string, error) {
+	raw := strings.TrimSpace(strings.ReplaceAll(name, "\\", "/"))
+	for _, segment := range strings.Split(raw, "/") {
+		if segment == ".." {
+			return "", errors.New("upload path must stay within the selected folder")
+		}
+	}
+	cleaned := strings.TrimPrefix(path.Clean("/"+raw), "/")
+	if cleaned == "" || cleaned == "." {
+		return "", errors.New("upload path is required")
+	}
+	return cleaned, nil
+}
+
+func buildUploadObjectKey(prefix, name string) (string, error) {
+	cleanName, err := sanitizeUploadRelativePath(name)
+	if err != nil {
+		return "", err
+	}
+	cleanPrefix, err := sanitizeUploadRelativePath(strings.TrimSuffix(strings.TrimSpace(prefix), "/"))
+	if err != nil && strings.TrimSpace(prefix) != "" {
+		return "", err
+	}
+	if strings.TrimSpace(prefix) == "" {
+		return cleanName, nil
+	}
+	return cleanPrefix + "/" + cleanName, nil
 }
 
 func actorFromRequest(c *gin.Context) string {
@@ -211,6 +267,7 @@ func (h *Handler) UploadObject(c *gin.Context) {
 	prefix := c.Query("prefix")
 	actor := actorFromRequest(c)
 	taskID := strings.TrimSpace(c.GetHeader("X-Task-ID"))
+	totalItems, _ := strconv.Atoi(strings.TrimSpace(c.GetHeader("X-Total-Items")))
 
 	mr, err := c.Request.MultipartReader()
 	if err != nil {
@@ -236,16 +293,18 @@ func (h *Handler) UploadObject(c *gin.Context) {
 		if filename == "" {
 			continue
 		}
-		key := filename
-		if prefix != "" {
-			key = strings.TrimSuffix(prefix, "/") + "/" + filename
+		key, err := buildUploadObjectKey(prefix, filename)
+		if err != nil {
+			h.service.FinishTask(taskID, app.TaskFailed, err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
 		}
 		contentType := part.Header.Get("Content-Type")
 		if contentType == "" {
 			contentType = "application/octet-stream"
 		}
 		if taskID == "" {
-			taskID = h.service.UpsertTask(taskID, "upload", bucket, prefix, actor, 1, nil)
+			taskID = h.service.UpsertTask(taskID, "upload", bucket, prefix, actor, max(totalItems, 1), map[string]string{"prefix": prefix, "mode": "stream"})
 		}
 		if _, err := h.client.PutObjectStream(c.Request.Context(), bucket, key, part, -1, contentType); err != nil {
 			h.service.UpdateTaskProgress(taskID, key, completed, app.TaskItem{SourceKey: key, Status: "failed", Error: err.Error()})
@@ -256,7 +315,7 @@ func (h *Handler) UploadObject(c *gin.Context) {
 		}
 		completed++
 		uploadedKeys = append(uploadedKeys, key)
-		h.service.UpsertTask(taskID, "upload", bucket, prefix, actor, completed, map[string]string{"prefix": prefix})
+		h.service.UpsertTask(taskID, "upload", bucket, prefix, actor, max(totalItems, completed), map[string]string{"prefix": prefix, "mode": "stream"})
 		h.service.UpdateTaskProgress(taskID, key, completed, app.TaskItem{SourceKey: key, Status: "uploaded"})
 		uploaded = append(uploaded, gin.H{"key": key, "name": filename})
 	}
@@ -270,6 +329,156 @@ func (h *Handler) UploadObject(c *gin.Context) {
 	h.service.RecordHistory("object.upload", bucket, actor, "success", "upload completed", uploadedKeys, map[string]string{"taskId": taskID})
 	h.service.EmitEvent(app.Event{Type: "object.uploaded", Bucket: bucket, Actor: actor, Keys: uploadedKeys, Metadata: map[string]string{"taskId": taskID}})
 	c.JSON(http.StatusCreated, gin.H{"uploaded": uploaded, "taskId": taskID})
+}
+
+func (h *Handler) InitResumableUpload(c *gin.Context) {
+	bucket := c.Param("bucket")
+	prefix := c.Query("prefix")
+	actor := actorFromRequest(c)
+	var req resumableUploadInitRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	key, err := buildUploadObjectKey(prefix, req.Key)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	contentType := strings.TrimSpace(req.ContentType)
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	taskID := h.service.UpsertTask(req.TaskID, "upload", bucket, prefix, actor, max(req.TotalItems, 1), map[string]string{"prefix": prefix, "mode": "resumable"})
+	uploadID, err := h.client.NewMultipartUpload(c.Request.Context(), bucket, key, contentType)
+	if err != nil {
+		h.service.FinishTask(taskID, app.TaskFailed, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "taskId": taskID})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{
+		"taskId":      taskID,
+		"uploadId":    uploadID,
+		"key":         key,
+		"partSize":    8 * 1024 * 1024,
+		"contentType": contentType,
+	})
+}
+
+func (h *Handler) GetResumableUploadStatus(c *gin.Context) {
+	bucket := c.Param("bucket")
+	uploadID := strings.TrimSpace(c.Query("uploadId"))
+	key, err := buildUploadObjectKey(c.Query("prefix"), c.Query("key"))
+	if uploadID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "uploadId is required"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	parts, err := h.client.ListObjectParts(c.Request.Context(), bucket, key, uploadID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	response := make([]gin.H, 0, len(parts))
+	for _, part := range parts {
+		response = append(response, gin.H{"partNumber": part.PartNumber, "etag": part.ETag, "size": part.Size})
+	}
+	c.JSON(http.StatusOK, gin.H{"uploadId": uploadID, "key": key, "parts": response})
+}
+
+func (h *Handler) UploadResumablePart(c *gin.Context) {
+	bucket := c.Param("bucket")
+	uploadID := strings.TrimSpace(c.Query("uploadId"))
+	key, err := buildUploadObjectKey(c.Query("prefix"), c.Query("key"))
+	if uploadID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "uploadId is required"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	partNumber, err := strconv.Atoi(strings.TrimSpace(c.Query("partNumber")))
+	if err != nil || partNumber <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "valid partNumber is required"})
+		return
+	}
+	if c.Request.ContentLength <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "content length is required"})
+		return
+	}
+	part, err := h.client.PutObjectPart(c.Request.Context(), bucket, key, uploadID, partNumber, c.Request.Body, c.Request.ContentLength)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"partNumber": part.PartNumber, "etag": part.ETag, "size": part.Size})
+}
+
+func (h *Handler) CompleteResumableUpload(c *gin.Context) {
+	bucket := c.Param("bucket")
+	prefix := c.Query("prefix")
+	actor := actorFromRequest(c)
+	var req resumableUploadCompleteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	key, err := buildUploadObjectKey(prefix, req.Key)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	parts := make([]minio.CompletePart, 0, len(req.Parts))
+	for _, part := range req.Parts {
+		if part.PartNumber <= 0 || strings.TrimSpace(part.ETag) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "each part requires partNumber and etag"})
+			return
+		}
+		parts = append(parts, minio.CompletePart{PartNumber: part.PartNumber, ETag: part.ETag})
+	}
+	sort.Slice(parts, func(i, j int) bool { return parts[i].PartNumber < parts[j].PartNumber })
+	contentType := strings.TrimSpace(req.ContentType)
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	taskID := h.service.UpsertTask(req.TaskID, "upload", bucket, prefix, actor, max(req.TotalItems, 1), map[string]string{"prefix": prefix, "mode": "resumable"})
+	if _, err := h.client.CompleteMultipartUpload(c.Request.Context(), bucket, key, req.UploadID, parts, contentType); err != nil {
+		h.service.UpdateTaskProgress(taskID, key, req.CompletedItems, app.TaskItem{SourceKey: key, Status: "failed", Error: err.Error()})
+		h.service.FinishTask(taskID, app.TaskFailed, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "taskId": taskID})
+		return
+	}
+	completedItems := max(req.CompletedItems, 1)
+	h.service.UpdateTaskProgress(taskID, key, completedItems, app.TaskItem{SourceKey: key, Status: "uploaded"})
+	if completedItems >= max(req.TotalItems, 1) {
+		h.service.FinishTask(taskID, app.TaskCompleted, fmt.Sprintf("uploaded %d file(s)", completedItems))
+		h.service.RecordHistory("object.upload", bucket, actor, "success", "upload completed", []string{key}, map[string]string{"taskId": taskID, "mode": "resumable"})
+		h.service.EmitEvent(app.Event{Type: "object.uploaded", Bucket: bucket, Actor: actor, Keys: []string{key}, Metadata: map[string]string{"taskId": taskID}})
+	}
+	c.JSON(http.StatusOK, gin.H{"taskId": taskID, "key": key})
+}
+
+func (h *Handler) AbortResumableUpload(c *gin.Context) {
+	bucket := c.Param("bucket")
+	uploadID := strings.TrimSpace(c.Query("uploadId"))
+	key, err := buildUploadObjectKey(c.Query("prefix"), c.Query("key"))
+	if uploadID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "uploadId is required"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.client.AbortMultipartUpload(c.Request.Context(), bucket, key, uploadID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "aborted"})
 }
 
 func (h *Handler) DeleteObject(c *gin.Context) {

@@ -15,17 +15,23 @@ import (
 // Client wraps the MinIO client and exposes S3 operations.
 type Client struct {
 	mc          *minio.Client
+	core        *minio.Core
 	publicBase  *url.URL
 	publicReady bool
 }
 
 // NewClient creates a new S3/MinIO client from configuration.
 func NewClient(cfg *config.Config) (*Client, error) {
-	mc, err := minio.New(cfg.S3Endpoint, &minio.Options{
+	opts := &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.S3AccessKey, cfg.S3SecretKey, ""),
 		Secure: cfg.S3UseSSL,
 		Region: cfg.S3Region,
-	})
+	}
+	mc, err := minio.New(cfg.S3Endpoint, opts)
+	if err != nil {
+		return nil, err
+	}
+	core, err := minio.NewCore(cfg.S3Endpoint, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +52,7 @@ func NewClient(cfg *config.Config) (*Client, error) {
 		}
 	}
 
-	return &Client{mc: mc, publicBase: base, publicReady: ready}, nil
+	return &Client{mc: mc, core: core, publicBase: base, publicReady: ready}, nil
 }
 
 func (c *Client) rewritePresigned(raw string) string {
@@ -113,6 +119,40 @@ func (c *Client) GetObject(ctx context.Context, bucket, key string) (*minio.Obje
 // PutObjectStream uploads an object by streaming from reader.
 func (c *Client) PutObjectStream(ctx context.Context, bucket, key string, reader io.Reader, size int64, contentType string) (minio.UploadInfo, error) {
 	return c.mc.PutObject(ctx, bucket, key, reader, size, minio.PutObjectOptions{ContentType: contentType})
+}
+
+func (c *Client) NewMultipartUpload(ctx context.Context, bucket, key, contentType string) (string, error) {
+	return c.core.NewMultipartUpload(ctx, bucket, key, minio.PutObjectOptions{ContentType: contentType})
+}
+
+func (c *Client) PutObjectPart(ctx context.Context, bucket, key, uploadID string, partNumber int, reader io.Reader, size int64) (minio.ObjectPart, error) {
+	return c.core.PutObjectPart(ctx, bucket, key, uploadID, partNumber, reader, size, minio.PutObjectPartOptions{})
+}
+
+func (c *Client) ListObjectParts(ctx context.Context, bucket, key, uploadID string) ([]minio.ObjectPart, error) {
+	var (
+		marker int
+		parts  []minio.ObjectPart
+	)
+	for {
+		result, err := c.core.ListObjectParts(ctx, bucket, key, uploadID, marker, 1000)
+		if err != nil {
+			return nil, err
+		}
+		parts = append(parts, result.ObjectParts...)
+		if !result.IsTruncated {
+			return parts, nil
+		}
+		marker = result.NextPartNumberMarker
+	}
+}
+
+func (c *Client) CompleteMultipartUpload(ctx context.Context, bucket, key, uploadID string, parts []minio.CompletePart, contentType string) (minio.UploadInfo, error) {
+	return c.core.CompleteMultipartUpload(ctx, bucket, key, uploadID, parts, minio.PutObjectOptions{ContentType: contentType})
+}
+
+func (c *Client) AbortMultipartUpload(ctx context.Context, bucket, key, uploadID string) error {
+	return c.core.AbortMultipartUpload(ctx, bucket, key, uploadID)
 }
 
 // CopyObject copies an object within the same bucket.

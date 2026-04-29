@@ -137,7 +137,7 @@
       </el-table>
     </div>
 
-    <el-dialog v-model="showUploadDialog" title="Upload Files" width="520px" @closed="resetUpload">
+    <el-dialog v-model="showUploadDialog" title="Batch Upload" width="640px" @closed="resetUpload">
       <div
         class="drop-zone"
         :class="{ 'drop-zone--over': isDragging }"
@@ -147,24 +147,47 @@
         @click="triggerFileInput"
       >
         <el-icon :size="48" color="#409eff"><UploadFilled /></el-icon>
-        <p>Drop files here or <strong>click</strong> to select</p>
-        <p class="hint">Files stream directly to S3 and a task record is created.</p>
+        <p>Drop files here or <strong>click</strong> to select files</p>
+        <p class="hint">Select a folder to keep its relative paths. Re-select the same files to resume unfinished uploads.</p>
+      </div>
+      <div class="upload-picker-actions">
+        <el-button @click.stop="triggerFileInput">Select Files</el-button>
+        <el-button @click.stop="triggerFolderInput">Select Folder</el-button>
       </div>
       <input ref="fileInputRef" type="file" multiple style="display:none" @change="onFileInputChange" />
+      <input ref="folderInputRef" type="file" webkitdirectory multiple style="display:none" @change="onFolderInputChange" />
       <div v-if="uploadFiles.length" class="upload-list">
-        <div v-for="f in uploadFiles" :key="`${f.name}-${f.size}`" class="upload-item">
-          <el-icon><Document /></el-icon>
-          <span class="upload-filename">{{ f.name }}</span>
-          <span class="upload-size">{{ formatSize(f.size) }}</span>
-          <el-tag v-if="f.status === 'done'" type="success" size="small">Done</el-tag>
-          <el-tag v-else-if="f.status === 'error'" type="danger" size="small">Error</el-tag>
+        <div class="upload-summary">
+          <div class="small-text">{{ uploadStats.completed }}/{{ uploadStats.total }} completed · {{ formatSize(uploadStats.loadedBytes) }} / {{ formatSize(uploadStats.totalBytes) }}</div>
+          <el-progress :percentage="uploadProgress" :status="uploadStats.failed ? 'exception' : uploadProgress === 100 ? 'success' : undefined" class="upload-progress" />
         </div>
-        <el-progress v-if="uploadProgress > 0" :percentage="uploadProgress" class="upload-progress" />
+        <div v-for="f in uploadFiles" :key="f.id" class="upload-item upload-item--stacked">
+          <div class="upload-item-main">
+            <div class="upload-item-meta">
+              <el-icon><Document /></el-icon>
+              <span class="upload-filename">{{ f.relativePath }}</span>
+            </div>
+            <span class="upload-size">{{ formatSize(f.size) }}</span>
+            <el-tag v-if="f.status === 'done'" type="success" size="small">Done</el-tag>
+            <el-tag v-else-if="f.status === 'uploading'" type="primary" size="small">Uploading</el-tag>
+            <el-tag v-else-if="f.status === 'paused'" type="warning" size="small">Paused</el-tag>
+            <el-tag v-else-if="f.status === 'error'" type="danger" size="small">Error</el-tag>
+            <el-tag v-else-if="f.status === 'resumable'" type="info" size="small">Resumable</el-tag>
+            <el-tag v-else size="small">Pending</el-tag>
+          </div>
+          <el-progress :percentage="fileProgress(f)" :status="f.status === 'error' ? 'exception' : f.status === 'done' ? 'success' : undefined" />
+          <div class="small-text upload-item-detail">
+            <span>{{ formatSize(f.uploadedBytes) }} / {{ formatSize(f.size) }}</span>
+            <span v-if="f.error">{{ f.error }}</span>
+          </div>
+        </div>
       </div>
       <template #footer>
-        <el-button @click="showUploadDialog = false">Cancel</el-button>
-        <el-button type="primary" :disabled="!uploadFiles.length || uploading" :loading="uploading" @click="startUpload">
-          Upload {{ uploadFiles.length ? `(${uploadFiles.length})` : '' }}
+        <el-button @click="showUploadDialog = false">Close</el-button>
+        <el-button :disabled="!uploadFiles.length || uploading" @click="clearUploadQueue">Clear</el-button>
+        <el-button v-if="uploading" @click="pauseUpload">Pause</el-button>
+        <el-button type="primary" :disabled="!uploadFiles.length || uploading || uploadStats.completed === uploadStats.total" :loading="uploading" @click="startUpload">
+          {{ uploadStats.completed ? 'Resume Upload' : 'Start Upload' }}{{ uploadFiles.length ? ` (${uploadFiles.length})` : '' }}
         </el-button>
       </template>
     </el-dialog>
@@ -387,7 +410,6 @@ import {
   listObjects,
   searchObjects,
   downloadUrl,
-  uploadObjects,
   deleteObject,
   batchDelete,
   batchMove,
@@ -404,7 +426,12 @@ import {
   deleteWebhook,
   listWebhookDeliveries,
   generateDownloadLink,
-  generateUploadLink
+  generateUploadLink,
+  initResumableUpload,
+  getResumableUploadStatus,
+  uploadResumablePart,
+  completeResumableUpload,
+  abortResumableUpload
 } from '../api'
 
 const route = useRoute()
@@ -425,6 +452,9 @@ const uploading = ref(false)
 const uploadProgress = ref(0)
 const isDragging = ref(false)
 const fileInputRef = ref(null)
+const folderInputRef = ref(null)
+const pauseUploadRequested = ref(false)
+const uploadBatchTaskId = ref('')
 
 const showCreateDialog = ref(false)
 const newBucket = ref({ name: '', region: 'us-east-1' })
@@ -487,6 +517,17 @@ const currentPrefix = computed(() => {
   return raw ? `${raw}/` : ''
 })
 const prefixParts = computed(() => currentPrefix.value.split('/').filter(Boolean))
+const uploadStats = computed(() => {
+  const total = uploadFiles.value.length
+  const completed = uploadFiles.value.filter((item) => item.status === 'done').length
+  const failed = uploadFiles.value.some((item) => item.status === 'error')
+  const totalBytes = uploadFiles.value.reduce((sum, item) => sum + (item.size || 0), 0)
+  const loadedBytes = uploadFiles.value.reduce((sum, item) => sum + Math.min(item.uploadedBytes || 0, item.size || 0), 0)
+  return { total, completed, failed, totalBytes, loadedBytes }
+})
+
+const RESUMABLE_PART_SIZE = 8 * 1024 * 1024
+const RESUMABLE_UPLOAD_STORAGE_KEY = 's3c-resumable-upload-sessions-v1'
 
 let poller = null
 
@@ -638,7 +679,16 @@ function triggerFileInput() {
   fileInputRef.value?.click()
 }
 
+function triggerFolderInput() {
+  folderInputRef.value?.click()
+}
+
 function onFileInputChange(event) {
+  addFiles(Array.from(event.target.files || []))
+  event.target.value = ''
+}
+
+function onFolderInputChange(event) {
   addFiles(Array.from(event.target.files || []))
   event.target.value = ''
 }
@@ -650,47 +700,271 @@ function onDrop(event) {
 
 function addFiles(files) {
   for (const file of files) {
-    if (!uploadFiles.value.find((item) => item.name === file.name && item.size === file.size)) {
-      uploadFiles.value.push(Object.assign(file, { status: 'pending' }))
+    const relativePath = normalizeUploadPath(file.webkitRelativePath || file.name)
+    if (!relativePath) continue
+    const prefix = currentPrefix.value.replace(/\/$/, '')
+    const key = buildUploadObjectKey(relativePath, prefix)
+    const id = buildUploadEntryId(key, file)
+    const existing = uploadFiles.value.find((item) => item.id === id)
+    const persisted = getPersistedUploadSession(id)
+    if (existing) {
+      existing.file = file
+      existing.status = existing.status === 'done' ? 'done' : persisted?.uploadId ? 'resumable' : existing.status
+      existing.error = persisted?.error || ''
+      continue
     }
+    uploadFiles.value.push({
+      id,
+      key,
+      prefix: persisted?.prefix || prefix,
+      name: file.name,
+      relativePath,
+      size: file.size,
+      lastModified: file.lastModified,
+      contentType: file.type || 'application/octet-stream',
+      file,
+      status: persisted?.uploadId ? (persisted.status === 'error' ? 'error' : 'resumable') : 'pending',
+      error: persisted?.error || '',
+      uploadedBytes: persisted?.uploadedBytes || 0,
+      uploadId: persisted?.uploadId || '',
+      partSize: persisted?.partSize || RESUMABLE_PART_SIZE,
+      parts: Array.isArray(persisted?.parts) ? persisted.parts : [],
+      taskId: persisted?.taskId || ''
+    })
   }
+  refreshUploadProgress()
 }
 
 function resetUpload() {
-  uploadFiles.value = []
-  uploadProgress.value = 0
-  uploading.value = false
+  isDragging.value = false
+  if (!uploadFiles.value.some((item) => item.status !== 'done')) {
+    void clearUploadQueue()
+  }
 }
 
 async function startUpload() {
   if (!uploadFiles.value.length) return
-  const taskId = createTaskId('upload')
+  const pendingItems = uploadFiles.value.filter((item) => item.status !== 'done')
+  if (!pendingItems.length) return
+  const taskId = uploadBatchTaskId.value || pendingItems.find((item) => item.taskId)?.taskId || createTaskId('upload')
+  uploadBatchTaskId.value = taskId
+  pauseUploadRequested.value = false
   uploading.value = true
-  uploadProgress.value = 0
   try {
-    await uploadObjects(
-      currentBucket.value,
-      uploadFiles.value,
-      currentPrefix.value.replace(/\/$/, ''),
-      (event) => {
-        if (event.total) uploadProgress.value = Math.round((event.loaded / event.total) * 100)
-      },
-      taskId
-    )
-    uploadFiles.value.forEach((file) => {
-      file.status = 'done'
-    })
-    ElMessage.success(`${uploadFiles.value.length} file(s) uploaded`)
-    showUploadDialog.value = false
-    await Promise.all([fetchObjects(), refreshTasks(), refreshHistory()])
+    for (const item of pendingItems) {
+      if (pauseUploadRequested.value) break
+      item.taskId = taskId
+      await uploadFileInParts(item, taskId)
+    }
+    if (pauseUploadRequested.value) {
+      uploadFiles.value.forEach((item) => {
+        if (item.status !== 'done') item.status = 'paused'
+      })
+      ElMessage.info('Upload paused')
+      return
+    }
+    if (uploadFiles.value.every((item) => item.status === 'done')) {
+      ElMessage.success(`${uploadFiles.value.length} file(s) uploaded`)
+      showUploadDialog.value = false
+      await clearUploadQueue()
+      await Promise.all([fetchObjects(), refreshTasks(), refreshHistory()])
+    }
   } catch (error) {
-    uploadFiles.value.forEach((file) => {
-      file.status = 'error'
-    })
     ElMessage.error('Upload failed: ' + (error.response?.data?.error || error.message))
   } finally {
     uploading.value = false
+    refreshUploadProgress()
   }
+}
+
+function pauseUpload() {
+  pauseUploadRequested.value = true
+}
+
+async function clearUploadQueue() {
+  await Promise.allSettled(
+    uploadFiles.value
+      .filter((item) => item.uploadId && item.status !== 'done')
+      .map((item) => abortResumableUpload(currentBucket.value, item.relativePath, item.uploadId, item.prefix || ''))
+  )
+  for (const item of uploadFiles.value) {
+    clearPersistedUploadSession(item.id)
+  }
+  uploadFiles.value = []
+  uploadBatchTaskId.value = ''
+  uploadProgress.value = 0
+  uploading.value = false
+  pauseUploadRequested.value = false
+}
+
+async function uploadFileInParts(item, taskId) {
+  try {
+    if (!item.file) {
+      throw new Error(`Please re-select "${item.relativePath}" to continue.`)
+    }
+    item.status = 'uploading'
+    item.error = ''
+    const prefix = item.prefix || ''
+    await ensureResumableSession(item, taskId, prefix)
+    const { data: status } = await getResumableUploadStatus(currentBucket.value, item.relativePath, item.uploadId, prefix)
+    item.parts = Array.isArray(status.parts) ? status.parts : []
+    item.uploadedBytes = calculateUploadedBytes(item)
+    refreshUploadProgress()
+    const totalParts = Math.max(1, Math.ceil(item.size / item.partSize))
+    for (let partNumber = 1; partNumber <= totalParts; partNumber += 1) {
+      if (pauseUploadRequested.value) {
+        item.status = 'paused'
+        persistUploadSession(item)
+        return
+      }
+      if (item.parts.some((part) => part.partNumber === partNumber)) continue
+      const start = (partNumber - 1) * item.partSize
+      const end = Math.min(item.size, start + item.partSize)
+      const chunk = item.file.slice(start, end)
+      const uploadedBeforePart = calculateUploadedBytes(item)
+      const { data } = await uploadResumablePart(
+        currentBucket.value,
+        item.relativePath,
+        item.uploadId,
+        partNumber,
+        chunk,
+        prefix,
+        (event) => {
+          item.uploadedBytes = Math.min(item.size, uploadedBeforePart + (event.loaded || 0))
+          refreshUploadProgress()
+        }
+      )
+      item.parts = [...item.parts, { partNumber: data.partNumber, etag: data.etag, size: data.size || chunk.size }].sort(
+        (a, b) => a.partNumber - b.partNumber
+      )
+      item.uploadedBytes = calculateUploadedBytes(item)
+      persistUploadSession(item)
+      refreshUploadProgress()
+    }
+    await completeResumableUpload(
+      currentBucket.value,
+      {
+        key: item.relativePath,
+        uploadId: item.uploadId,
+        contentType: item.contentType,
+        taskId,
+        totalItems: uploadFiles.value.length,
+        completedItems: uploadFiles.value.filter((entry) => entry.status === 'done').length + 1,
+        parts: item.parts.map((part) => ({ partNumber: part.partNumber, etag: part.etag, size: part.size }))
+      },
+      prefix
+    )
+    item.status = 'done'
+    item.uploadedBytes = item.size
+    item.error = ''
+    clearPersistedUploadSession(item.id)
+  } catch (error) {
+    item.status = 'error'
+    item.error = error.response?.data?.error || error.message
+    persistUploadSession(item)
+    throw error
+  }
+}
+
+async function ensureResumableSession(item, taskId, prefix) {
+  if (item.uploadId) {
+    persistUploadSession(item)
+    return
+  }
+  const { data } = await initResumableUpload(
+    currentBucket.value,
+    {
+      key: item.relativePath,
+      size: item.size,
+      contentType: item.contentType,
+      taskId,
+      totalItems: uploadFiles.value.length
+    },
+    prefix
+  )
+  item.uploadId = data.uploadId
+  item.partSize = data.partSize || RESUMABLE_PART_SIZE
+  item.taskId = data.taskId || taskId
+  persistUploadSession(item)
+}
+
+function buildUploadEntryId(key, file) {
+  return [currentBucket.value, key, file.size, file.lastModified].join('::')
+}
+
+function normalizeUploadPath(value) {
+  return (value || '')
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '')
+    .split('/')
+    .filter(Boolean)
+    .join('/')
+}
+
+function buildUploadObjectKey(relativePath, prefix = currentPrefix.value) {
+  const path = normalizeUploadPath(relativePath)
+  return `${normalizePrefix(prefix)}${path}`
+}
+
+function fileProgress(file) {
+  if (!file?.size) return file?.status === 'done' ? 100 : 0
+  return Math.min(100, Math.round(((file.uploadedBytes || 0) / file.size) * 100))
+}
+
+function calculateUploadedBytes(item) {
+  return (item.parts || []).reduce((sum, part) => sum + (part.size || 0), 0)
+}
+
+function refreshUploadProgress() {
+  if (!uploadStats.value.totalBytes) {
+    uploadProgress.value = uploadStats.value.total ? (uploadStats.value.completed === uploadStats.value.total ? 100 : 0) : 0
+    return
+  }
+  uploadProgress.value = Math.min(100, Math.round((uploadStats.value.loadedBytes / uploadStats.value.totalBytes) * 100))
+}
+
+function readPersistedUploadSessions() {
+  try {
+    return JSON.parse(window.localStorage.getItem(RESUMABLE_UPLOAD_STORAGE_KEY) || '{}')
+  } catch {
+    return {}
+  }
+}
+
+function writePersistedUploadSessions(sessions) {
+  window.localStorage.setItem(RESUMABLE_UPLOAD_STORAGE_KEY, JSON.stringify(sessions))
+}
+
+function getPersistedUploadSession(id) {
+  return readPersistedUploadSessions()[id] || null
+}
+
+function persistUploadSession(item) {
+  const sessions = readPersistedUploadSessions()
+  sessions[item.id] = {
+    id: item.id,
+    key: item.key,
+    prefix: item.prefix,
+    relativePath: item.relativePath,
+    size: item.size,
+    lastModified: item.lastModified,
+    uploadedBytes: calculateUploadedBytes(item),
+    uploadId: item.uploadId,
+    partSize: item.partSize,
+    parts: item.parts,
+    taskId: item.taskId,
+    status: item.status,
+    error: item.error,
+    updatedAt: new Date().toISOString()
+  }
+  writePersistedUploadSessions(sessions)
+}
+
+function clearPersistedUploadSession(id) {
+  const sessions = readPersistedUploadSessions()
+  if (!sessions[id]) return
+  delete sessions[id]
+  writePersistedUploadSessions(sessions)
 }
 
 function selectedKeys() {
@@ -1164,11 +1438,49 @@ function formatDate(value) {
   margin-top: 16px;
 }
 
+.upload-picker-actions,
+.upload-summary,
+.upload-item-detail {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.upload-picker-actions {
+  margin-top: 12px;
+}
+
 .upload-item,
 .rename-item {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.upload-item--stacked {
+  align-items: stretch;
+  flex-direction: column;
+  padding: 10px 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.upload-item-main,
+.upload-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.upload-item-main {
+  justify-content: space-between;
+}
+
+.upload-item-meta {
+  flex: 1;
+  min-width: 0;
 }
 
 .upload-filename,

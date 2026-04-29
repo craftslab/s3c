@@ -30,6 +30,29 @@ export const uploadObjects = (bucket, files, prefix = '', onProgress, taskId) =>
   })
 }
 
+export const initResumableUpload = (bucket, payload, prefix = '') =>
+  api.post(`/uploads/${encodeURIComponent(bucket)}/resumable/init`, payload, { params: { prefix } })
+
+export const getResumableUploadStatus = (bucket, key, uploadId, prefix = '') =>
+  api.get(`/uploads/${encodeURIComponent(bucket)}/resumable/status`, {
+    params: { key, uploadId, prefix }
+  })
+
+export const uploadResumablePart = (bucket, key, uploadId, partNumber, chunk, prefix = '', onProgress) =>
+  api.put(`/uploads/${encodeURIComponent(bucket)}/resumable/part`, chunk, {
+    params: { key, uploadId, partNumber, prefix },
+    headers: { 'Content-Type': 'application/octet-stream' },
+    onUploadProgress: onProgress
+  })
+
+export const completeResumableUpload = (bucket, payload, prefix = '') =>
+  api.post(`/uploads/${encodeURIComponent(bucket)}/resumable/complete`, payload, { params: { prefix } })
+
+export const abortResumableUpload = (bucket, key, uploadId, prefix = '') =>
+  api.delete(`/uploads/${encodeURIComponent(bucket)}/resumable`, {
+    params: { key, uploadId, prefix }
+  })
+
 export const deleteObject = (bucket, key) =>
   api.delete(`/objects/${encodeURIComponent(bucket)}/${encodeURIComponent(key)}`)
 
