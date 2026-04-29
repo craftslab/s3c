@@ -688,7 +688,7 @@ async function createBucketAction() {
   try {
     await createBucket(name, newBucket.value.region || 'us-east-1')
     showCreateDialog.value = false
-    ElMessage.success(`Bucket "${name}" created / Bucket 已创建`) 
+    ElMessage.success(`Bucket "${name}" created / Bucket 已创建`)
     await fetchBuckets()
   } catch (error) {
     ElMessage.error('Failed to create bucket / 创建 Bucket 失败：' + (error.response?.data?.error || error.message))
@@ -853,7 +853,7 @@ async function clearUploadQueue() {
 async function uploadFileInParts(item, taskId) {
   try {
     if (!item.file) {
-      throw new Error(`Please re-select "${item.relativePath}" to continue. / 请重新选择 "${item.relativePath}" 后继续。`) 
+      throw new Error(`Please re-select "${item.relativePath}" to continue. / 请重新选择 "${item.relativePath}" 后继续。`)
     }
     item.status = 'uploading'
     item.error = ''
