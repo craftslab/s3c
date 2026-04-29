@@ -10,7 +10,7 @@ A lightweight **Go + Vue 3** web application for browsing, uploading and downloa
 - ⬆️ **Batch upload** of files and folders with per-item progress, resumable multipart transfer, and task tracking
 - ⬇️ **Streaming download** of large files – objects are piped from S3 straight to the browser
 - 🔗 **Presigned URLs** – generate time-limited download or upload links shareable without credentials (configurable expiry, default 24 h, max 7 days)
-- 🪣 Create / 🗑️ delete buckets
+- ➕ Create / 🗑️ delete buckets
 - 🗑️ Delete individual files or entire folders (recursive)
 - 🧰 Batch download, move, rename, and delete for files/folders
 - 🔎 Search objects by name, size, prefix, and modification time
