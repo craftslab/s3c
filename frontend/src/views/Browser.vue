@@ -686,13 +686,13 @@ const webhooks = ref([])
 const deliveries = ref([])
 const showUsersDrawer = ref(false)
 const users = ref([])
-const DEFAULT_TEMP_USER_TTL_MS = 24 * 60 * 60 * 1000
+const DEFAULT_TEMP_USER_LIFETIME_MS = 24 * 60 * 60 * 1000
 const DEFAULT_TEMP_USER_PERMISSIONS = ['upload', 'download', 'search', 'presign']
 const showCreateTempUserDialog = ref(false)
 const generatedTempCredentials = ref(null)
 const showEditUserDialog = ref(false)
 const tempUserForm = ref({
-  expiresAt: new Date(Date.now() + DEFAULT_TEMP_USER_TTL_MS),
+  expiresAt: new Date(Date.now() + DEFAULT_TEMP_USER_LIFETIME_MS),
   permissions: [...DEFAULT_TEMP_USER_PERMISSIONS]
 })
 const editableUser = ref(null)
@@ -1604,7 +1604,7 @@ async function confirmDeleteUser(user) {
 function resetTempUserDialog() {
   generatedTempCredentials.value = null
   tempUserForm.value = {
-    expiresAt: new Date(Date.now() + DEFAULT_TEMP_USER_TTL_MS),
+    expiresAt: new Date(Date.now() + DEFAULT_TEMP_USER_LIFETIME_MS),
     permissions: [...DEFAULT_TEMP_USER_PERMISSIONS]
   }
 }
@@ -2119,7 +2119,7 @@ function formatDate(value) {
 
 .field-hint {
   margin-top: 8px;
-  color: #8c7a6b;
+  color: #6f6256;
   font-size: 12px;
 }
 

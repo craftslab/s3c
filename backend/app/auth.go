@@ -28,7 +28,10 @@ var (
 	maxStoredSessions          = 500
 	defaultSessionLifetime     = 7 * 24 * time.Hour
 	defaultUserPermissions     = []Permission{PermissionUpload, PermissionDownload, PermissionSearch, PermissionPresign}
+	tempUsernameAlphabet       = "abcdefghijkmnopqrstuvwxyz23456789"
 	tempUsernameLength         = 10
+	tempUsernameMaxAttempts    = 32
+	tempPasswordAlphabet       = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
 	tempPasswordLength         = 18
 )
 
@@ -273,7 +276,7 @@ func (s *Service) CreateTemporaryUser(expiresAt time.Time, permissions []Permiss
 		return User{}, "", ErrInvalidUserExpiry
 	}
 
-	password, err := randomString(tempPasswordLength, "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789")
+	password, err := randomString(tempPasswordLength, tempPasswordAlphabet)
 	if err != nil {
 		return User{}, "", err
 	}
@@ -500,8 +503,8 @@ func sessionExpiryForUser(user User, now time.Time) time.Time {
 }
 
 func newTemporaryUsername(existing []User) (string, error) {
-	for range 32 {
-		suffix, err := randomString(tempUsernameLength, "abcdefghijkmnopqrstuvwxyz23456789")
+	for range tempUsernameMaxAttempts {
+		suffix, err := randomString(tempUsernameLength, tempUsernameAlphabet)
 		if err != nil {
 			return "", err
 		}
