@@ -23,6 +23,9 @@ func main() {
 		log.Fatalf("failed to create store: %v", err)
 	}
 	service := app.NewService(client, store)
+	if err := service.EnsureAdmin(cfg.AdminUsername, cfg.AdminPassword); err != nil {
+		log.Fatalf("failed to initialize admin user: %v", err)
+	}
 	service.StartCleanupScheduler(context.Background(), time.Duration(cfg.CleanupIntervalSecond)*time.Second)
 
 	router := api.NewRouter(client, service, cfg)
