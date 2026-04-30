@@ -3,6 +3,8 @@ package app
 import "time"
 
 type TaskStatus string
+type Role string
+type Permission string
 
 const (
 	TaskPending   TaskStatus = "pending"
@@ -10,6 +12,37 @@ const (
 	TaskCompleted TaskStatus = "completed"
 	TaskFailed    TaskStatus = "failed"
 )
+
+const (
+	RoleAdmin Role = "admin"
+	RoleUser  Role = "user"
+)
+
+const (
+	PermissionUpload   Permission = "upload"
+	PermissionDownload Permission = "download"
+	PermissionCreate   Permission = "create"
+	PermissionDelete   Permission = "delete"
+	PermissionMove     Permission = "move"
+	PermissionRename   Permission = "rename"
+	PermissionSearch   Permission = "search"
+	PermissionCleanup  Permission = "cleanup"
+	PermissionWebhook  Permission = "webhook"
+	PermissionPresign  Permission = "presign"
+)
+
+var AllPermissions = []Permission{
+	PermissionUpload,
+	PermissionDownload,
+	PermissionCreate,
+	PermissionDelete,
+	PermissionMove,
+	PermissionRename,
+	PermissionSearch,
+	PermissionCleanup,
+	PermissionWebhook,
+	PermissionPresign,
+}
 
 type TaskItem struct {
 	SourceKey string `json:"sourceKey"`
@@ -96,10 +129,30 @@ type Event struct {
 	CreatedAt time.Time         `json:"createdAt"`
 }
 
+type User struct {
+	ID           string       `json:"id"`
+	Username     string       `json:"username"`
+	Role         Role         `json:"role"`
+	Permissions  []Permission `json:"permissions,omitempty"`
+	PasswordHash string       `json:"-"`
+	Builtin      bool         `json:"builtin,omitempty"`
+	CreatedAt    time.Time    `json:"createdAt"`
+	UpdatedAt    time.Time    `json:"updatedAt"`
+}
+
+type Session struct {
+	Token     string    `json:"token"`
+	Username  string    `json:"username"`
+	CreatedAt time.Time `json:"createdAt"`
+	ExpiresAt time.Time `json:"expiresAt"`
+}
+
 type State struct {
 	Tasks      []Task            `json:"tasks"`
 	History    []HistoryEntry    `json:"history"`
 	Policies   []CleanupPolicy   `json:"policies"`
 	Webhooks   []Webhook         `json:"webhooks"`
 	Deliveries []WebhookDelivery `json:"deliveries"`
+	Users      []User            `json:"users,omitempty"`
+	Sessions   []Session         `json:"sessions,omitempty"`
 }

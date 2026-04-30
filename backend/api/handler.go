@@ -124,6 +124,9 @@ func uploadedKeysFromTask(task app.Task) []string {
 }
 
 func actorFromRequest(c *gin.Context) string {
+	if user, ok := currentUserFromContext(c); ok && user.Username != "" {
+		return user.Username
+	}
 	for _, key := range []string{"X-User", "X-Forwarded-User", "X-Remote-User"} {
 		if value := strings.TrimSpace(c.GetHeader(key)); value != "" {
 			return value
@@ -583,6 +586,7 @@ func (h *Handler) ListTasks(c *gin.Context) {
 	statusFilter := strings.TrimSpace(c.Query("status"))
 	bucketFilter := strings.TrimSpace(c.Query("bucket"))
 	typeFilter := strings.TrimSpace(c.Query("type"))
+	user, hasUser := currentUserFromContext(c)
 	filtered := make([]app.Task, 0, len(tasks))
 	for _, task := range tasks {
 		if statusFilter != "" && string(task.Status) != statusFilter {
@@ -592,6 +596,9 @@ func (h *Handler) ListTasks(c *gin.Context) {
 			continue
 		}
 		if typeFilter != "" && task.Type != typeFilter {
+			continue
+		}
+		if hasUser && !user.IsAdmin() && task.Actor != user.Username {
 			continue
 		}
 		filtered = append(filtered, task)
@@ -604,6 +611,7 @@ func (h *Handler) ListHistory(c *gin.Context) {
 	typeFilter := strings.TrimSpace(c.Query("type"))
 	bucketFilter := strings.TrimSpace(c.Query("bucket"))
 	actorFilter := strings.TrimSpace(c.Query("actor"))
+	user, hasUser := currentUserFromContext(c)
 	filtered := make([]app.HistoryEntry, 0, len(entries))
 	for _, entry := range entries {
 		if typeFilter != "" && entry.Type != typeFilter {
@@ -613,6 +621,9 @@ func (h *Handler) ListHistory(c *gin.Context) {
 			continue
 		}
 		if actorFilter != "" && entry.Actor != actorFilter {
+			continue
+		}
+		if hasUser && !user.IsAdmin() && entry.Actor != user.Username {
 			continue
 		}
 		filtered = append(filtered, entry)

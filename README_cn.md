@@ -55,6 +55,8 @@ open http://localhost:3000
 
 默认 MinIO 凭证：`minioadmin` / `minioadmin`
 
+默认 Kipup 管理员凭证：`admin` / `admin`
+
 ## 本地开发
 
 ### 后端
@@ -87,6 +89,8 @@ npm run dev
 | 变量 | 默认值 | 说明 |
 |---|---|---|
 | `LISTEN_ADDR` | `:8080` | 后端监听地址 |
+| `ADMIN_USERNAME` | `admin` | 用于登录的初始化管理员用户名 |
+| `ADMIN_PASSWORD` | `admin` | 用于登录的初始化管理员密码 |
 | `S3_ENDPOINT` | `localhost:9000` | S3/MinIO 端点（host:port） |
 | `S3_PUBLIC_URL` | *(空)* | 返回的预签名链接中使用的 S3 公网基础 URL（例如 `https://s3.example.com`） |
 | `PUBLIC_BASE_URL` | *(空)* | 用于构建可分享代理下载链接的 Kipup Web 入口公网基础 URL（例如 `https://kipup.example.com`） |
@@ -99,8 +103,17 @@ npm run dev
 
 ## API 参考
 
+除 `/api/v1/auth/sign-up` 和 `/api/v1/auth/sign-in` 外，所有 `/api/v1/*` 接口都需要 `Bearer` token。注册默认会创建普通用户账号，并授予 `upload`、`download`、`search`、`presign` 四项默认权限；管理员可在界面中调整用户角色和权限。
+
 | 方法 | 路径 | 说明 |
 |---|---|---|
+| POST | `/api/v1/auth/sign-up` | 创建普通用户账号 `{"username":"…","password":"…"}` |
+| POST | `/api/v1/auth/sign-in` | 登录并获取 bearer token |
+| GET | `/api/v1/auth/me` | 获取当前登录用户 |
+| POST | `/api/v1/auth/sign-out` | 登出当前会话 |
+| GET | `/api/v1/users` | 列出用户（仅管理员） |
+| PUT | `/api/v1/users/:username` | 更新用户角色和权限（仅管理员） |
+| DELETE | `/api/v1/users/:username` | 删除用户（仅管理员） |
 | GET | `/api/v1/buckets` | 列出桶 |
 | POST | `/api/v1/buckets` | 创建桶 `{"name":"…","region":"…"}` |
 | DELETE | `/api/v1/buckets/:bucket` | 删除桶 |
@@ -121,6 +134,12 @@ npm run dev
 | GET | `/api/v1/webhook-deliveries` | 列出最近的 Webhook 投递记录 |
 | GET | `/api/v1/presign/download/:bucket/*key` | 生成预签名下载 URL |
 | GET | `/api/v1/presign/upload/:bucket/*key` | 生成预签名上传 URL |
+
+### 角色与权限模型
+
+- `admin` 拥有全部操作权限。
+- `user` 可单独授予这些权限：`upload`、`download`、`create`、`delete`、`move`、`rename`、`search`、`cleanup`、`webhook`、`presign`。
+- 基于预签名链接的共享 `/upload` 和 `/download` 代理路由仍可匿名访问。
 
 ### 预签名 URL 接口
 

@@ -70,11 +70,97 @@ func (s *Store) saveLocked() error {
 
 func cloneState(in State) State {
 	out := State{
-		Tasks:      append([]Task(nil), in.Tasks...),
-		History:    append([]HistoryEntry(nil), in.History...),
+		Tasks:      cloneTasks(in.Tasks),
+		History:    cloneHistory(in.History),
 		Policies:   append([]CleanupPolicy(nil), in.Policies...),
-		Webhooks:   append([]Webhook(nil), in.Webhooks...),
-		Deliveries: append([]WebhookDelivery(nil), in.Deliveries...),
+		Webhooks:   cloneWebhooks(in.Webhooks),
+		Deliveries: cloneDeliveries(in.Deliveries),
+		Users:      cloneUsers(in.Users),
+		Sessions:   append([]Session(nil), in.Sessions...),
+	}
+	return out
+}
+
+func cloneTasks(in []Task) []Task {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]Task, len(in))
+	for i, task := range in {
+		out[i] = task
+		out[i].Metadata = cloneStringMap(task.Metadata)
+		out[i].Items = append([]TaskItem(nil), task.Items...)
+	}
+	return out
+}
+
+func cloneHistory(in []HistoryEntry) []HistoryEntry {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]HistoryEntry, len(in))
+	for i, entry := range in {
+		out[i] = entry
+		out[i].Keys = append([]string(nil), entry.Keys...)
+		out[i].Metadata = cloneStringMap(entry.Metadata)
+	}
+	return out
+}
+
+func cloneWebhooks(in []Webhook) []Webhook {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]Webhook, len(in))
+	for i, hook := range in {
+		out[i] = hook
+		out[i].Events = append([]string(nil), hook.Events...)
+	}
+	return out
+}
+
+func cloneDeliveries(in []WebhookDelivery) []WebhookDelivery {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]WebhookDelivery, len(in))
+	for i, delivery := range in {
+		out[i] = delivery
+		out[i].Payload = cloneAnyMap(delivery.Payload)
+	}
+	return out
+}
+
+func cloneUsers(in []User) []User {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]User, len(in))
+	for i, user := range in {
+		out[i] = user
+		out[i].Permissions = clonePermissions(user.Permissions)
+	}
+	return out
+}
+
+func cloneStringMap(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func cloneAnyMap(in map[string]interface{}) map[string]interface{} {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]interface{}, len(in))
+	for key, value := range in {
+		out[key] = value
 	}
 	return out
 }

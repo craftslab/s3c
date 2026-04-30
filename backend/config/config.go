@@ -8,6 +8,8 @@ import (
 // Config holds all application configuration loaded from environment variables.
 type Config struct {
 	ListenAddr            string
+	AdminUsername         string
+	AdminPassword         string
 	S3Endpoint            string
 	S3PublicURL           string
 	PublicBaseURL         string
@@ -22,8 +24,10 @@ type Config struct {
 // Load returns a Config populated from environment variables with sensible defaults.
 func Load() *Config {
 	return &Config{
-		ListenAddr: getEnv("LISTEN_ADDR", ":8080"),
-		S3Endpoint: getEnv("S3_ENDPOINT", "localhost:9000"),
+		ListenAddr:    getEnv("LISTEN_ADDR", ":8080"),
+		AdminUsername: getEnv("ADMIN_USERNAME", "admin"),
+		AdminPassword: getEnv("ADMIN_PASSWORD", "admin"),
+		S3Endpoint:    getEnv("S3_ENDPOINT", "localhost:9000"),
 		// S3PublicURL is the externally reachable base URL used in returned presigned links.
 		// Example: https://s3.example.com
 		S3PublicURL: getEnv("S3_PUBLIC_URL", ""),

@@ -1,6 +1,27 @@
 import axios from 'axios'
 
+export const AUTH_TOKEN_STORAGE_KEY = 'kipup-auth-token'
+
 const api = axios.create({ baseURL: '/api/v1' })
+
+api.interceptors.request.use((config) => {
+  if (typeof window !== 'undefined') {
+    const token = window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY)
+    if (token) {
+      config.headers = config.headers || {}
+      config.headers.Authorization = `Bearer ${token}`
+    }
+  }
+  return config
+})
+
+export const signUp = (payload) => api.post('/auth/sign-up', payload)
+export const signIn = (payload) => api.post('/auth/sign-in', payload)
+export const signOut = () => api.post('/auth/sign-out')
+export const getCurrentUser = () => api.get('/auth/me')
+export const listUsers = () => api.get('/users')
+export const updateUser = (username, payload) => api.put(`/users/${encodeURIComponent(username)}`, payload)
+export const deleteUserAccount = (username) => api.delete(`/users/${encodeURIComponent(username)}`)
 
 export const listBuckets = () => api.get('/buckets')
 export const createBucket = (name, region = 'us-east-1') => api.post('/buckets', { name, region })
@@ -12,8 +33,8 @@ export const listObjects = (bucket, prefix = '') =>
 export const searchObjects = (bucket, filters = {}) =>
   api.get(`/search/${encodeURIComponent(bucket)}`, { params: filters })
 
-export const downloadUrl = (bucket, key) =>
-  `/api/v1/objects/${encodeURIComponent(bucket)}/${encodeURIComponent(key)}`
+export const downloadObject = (bucket, key) =>
+  api.get(`/objects/${encodeURIComponent(bucket)}/${encodeURIComponent(key)}`, { responseType: 'blob' })
 
 export const uploadObjects = (bucket, files, prefix = '', onProgress, taskId) => {
   const form = new FormData()
