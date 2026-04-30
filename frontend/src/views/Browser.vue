@@ -1384,7 +1384,7 @@ async function runCleanupPolicyAction(policy) {
   if (!ensurePermission('cleanup', 'manage cleanup policies')) return
   try {
     const { data } = await runCleanupPolicy(policy.id)
-    ElMessage.success(`Cleanup removed ${(data.deleted || []).length} object(s)`) 
+    ElMessage.success(`Cleanup removed ${(data.deleted || []).length} object(s)`)
     await Promise.all([fetchObjects(), refreshCleanupPolicies(), refreshHistory(), refreshTasks()])
   } catch (error) {
     ElMessage.error('Cleanup failed: ' + (error.response?.data?.error || error.message))

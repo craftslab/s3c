@@ -124,7 +124,7 @@ func uploadedKeysFromTask(task app.Task) []string {
 }
 
 func actorFromRequest(c *gin.Context) string {
-	if user, ok := currentUserFromContext(c); ok && strings.TrimSpace(user.Username) != "" {
+	if user, ok := currentUserFromContext(c); ok && user.Username != "" {
 		return user.Username
 	}
 	for _, key := range []string{"X-User", "X-Forwarded-User", "X-Remote-User"} {
