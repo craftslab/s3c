@@ -13,19 +13,26 @@ import (
 )
 
 var (
-	ErrInvalidCredentials  = errors.New("invalid username or password")
-	ErrUnauthorized        = errors.New("authentication required")
-	ErrForbidden           = errors.New("permission denied")
-	ErrUserExists          = errors.New("user already exists")
-	ErrUserNotFound        = errors.New("user not found")
-	ErrBuiltinAdminLocked  = errors.New("builtin admin cannot be deleted or downgraded")
-	ErrLastAdminRequired   = errors.New("at least one admin must remain")
-	ErrInvalidRole         = errors.New("invalid role")
-	ErrInvalidUsername     = errors.New("username must be 3-64 characters")
-	ErrInvalidPassword     = errors.New("password must be 4-128 characters")
-	maxStoredSessions      = 500
-	defaultSessionLifetime = 7 * 24 * time.Hour
-	defaultUserPermissions = []Permission{PermissionUpload, PermissionDownload, PermissionSearch, PermissionPresign}
+	ErrInvalidCredentials      = errors.New("invalid username or password")
+	ErrUnauthorized            = errors.New("authentication required")
+	ErrForbidden               = errors.New("permission denied")
+	ErrUserExists              = errors.New("user already exists")
+	ErrUserNotFound            = errors.New("user not found")
+	ErrBuiltinAdminLocked      = errors.New("builtin admin cannot be deleted or downgraded")
+	ErrLastAdminRequired       = errors.New("at least one admin must remain")
+	ErrInvalidRole             = errors.New("invalid role")
+	ErrInvalidUsername         = errors.New("username must be 3-64 characters")
+	ErrInvalidPassword         = errors.New("password must be 4-128 characters")
+	ErrInvalidUserExpiry       = errors.New("temporary user expiry must be in the future")
+	ErrTemporaryUserRoleLocked = errors.New("temporary users must keep the user role")
+	maxStoredSessions          = 500
+	defaultSessionLifetime     = 7 * 24 * time.Hour
+	defaultUserPermissions     = []Permission{PermissionUpload, PermissionDownload, PermissionSearch, PermissionPresign}
+	tempUsernameAlphabet       = "abcdefghijkmnopqrstuvwxyz23456789"
+	tempUsernameLength         = 10
+	tempUsernameMaxAttempts    = 32
+	tempPasswordAlphabet       = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
+	tempPasswordLength         = 18
 )
 
 func (u User) IsAdmin() bool {
@@ -58,6 +65,7 @@ func (s *Service) EnsureAdmin(username, password string) error {
 	}
 	now := time.Now().UTC()
 	return s.store.update(func(state *State) error {
+		pruneExpiredAccess(state, now)
 		targetIndex := -1
 		builtinIndex := -1
 		for i, user := range state.Users {
@@ -100,7 +108,7 @@ func (s *Service) EnsureAdmin(username, password string) error {
 			})
 		}
 
-		pruneExpiredSessions(state, now)
+		pruneExpiredAccess(state, now)
 		return nil
 	})
 }
@@ -127,6 +135,7 @@ func (s *Service) SignUp(username, password string) (User, error) {
 		UpdatedAt:    time.Now().UTC(),
 	}
 	if err := s.store.update(func(state *State) error {
+		pruneExpiredAccess(state, time.Now().UTC())
 		if findUserIndex(state.Users, normalizedUsername) >= 0 {
 			return ErrUserExists
 		}
@@ -150,6 +159,14 @@ func (s *Service) SignIn(username, password string) (string, User, error) {
 		return "", User{}, ErrInvalidCredentials
 	}
 	user := state.Users[userIndex]
+	now := time.Now().UTC()
+	if isUserExpired(user, now) {
+		_ = s.store.update(func(state *State) error {
+			pruneExpiredAccess(state, now)
+			return nil
+		})
+		return "", User{}, ErrInvalidCredentials
+	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
 		return "", User{}, ErrInvalidCredentials
 	}
@@ -158,15 +175,14 @@ func (s *Service) SignIn(username, password string) (string, User, error) {
 	if err != nil {
 		return "", User{}, err
 	}
-	now := time.Now().UTC()
 	session := Session{
 		Token:     token,
 		Username:  user.Username,
 		CreatedAt: now,
-		ExpiresAt: now.Add(defaultSessionLifetime),
+		ExpiresAt: sessionExpiryForUser(user, now),
 	}
 	if err := s.store.update(func(state *State) error {
-		pruneExpiredSessions(state, now)
+		pruneExpiredAccess(state, now)
 		state.Sessions = append([]Session{session}, state.Sessions...)
 		if len(state.Sessions) > maxStoredSessions {
 			state.Sessions = state.Sessions[:maxStoredSessions]
@@ -192,7 +208,7 @@ func (s *Service) Authenticate(token string) (User, error) {
 		}
 		if !session.ExpiresAt.After(now) {
 			_ = s.store.update(func(state *State) error {
-				pruneExpiredSessions(state, now)
+				pruneExpiredAccess(state, now)
 				return nil
 			})
 			return User{}, ErrUnauthorized
@@ -201,7 +217,15 @@ func (s *Service) Authenticate(token string) (User, error) {
 		if userIndex < 0 {
 			return User{}, ErrUnauthorized
 		}
-		return sanitizeUser(state.Users[userIndex]), nil
+		user := state.Users[userIndex]
+		if isUserExpired(user, now) {
+			_ = s.store.update(func(state *State) error {
+				pruneExpiredAccess(state, now)
+				return nil
+			})
+			return User{}, ErrUnauthorized
+		}
+		return sanitizeUser(user), nil
 	}
 	return User{}, ErrUnauthorized
 }
@@ -226,16 +250,64 @@ func (s *Service) SignOut(token string) error {
 func (s *Service) ListUsers() []User {
 	state := s.store.snapshot()
 	users := make([]User, 0, len(state.Users))
+	now := time.Now().UTC()
 	for _, user := range state.Users {
+		if isUserExpired(user, now) {
+			continue
+		}
 		users = append(users, sanitizeUser(user))
 	}
 	sort.Slice(users, func(i, j int) bool {
 		if users[i].Builtin != users[j].Builtin {
 			return users[i].Builtin
 		}
+		if users[i].Temporary != users[j].Temporary {
+			return !users[i].Temporary
+		}
 		return users[i].Username < users[j].Username
 	})
 	return users
+}
+
+func (s *Service) CreateTemporaryUser(expiresAt time.Time, permissions []Permission) (User, string, error) {
+	now := time.Now().UTC()
+	expiresAt = expiresAt.UTC()
+	if !expiresAt.After(now) {
+		return User{}, "", ErrInvalidUserExpiry
+	}
+
+	password, err := randomString(tempPasswordLength, tempPasswordAlphabet)
+	if err != nil {
+		return User{}, "", err
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return User{}, "", err
+	}
+
+	user := User{
+		ID:           newID("user"),
+		Role:         RoleUser,
+		Permissions:  normalizePermissions(permissions),
+		PasswordHash: string(hash),
+		Temporary:    true,
+		ExpiresAt:    &expiresAt,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	if err := s.store.update(func(state *State) error {
+		pruneExpiredAccess(state, now)
+		username, usernameErr := newTemporaryUsername(state.Users)
+		if usernameErr != nil {
+			return usernameErr
+		}
+		user.Username = username
+		state.Users = append(state.Users, user)
+		return nil
+	}); err != nil {
+		return User{}, "", err
+	}
+	return sanitizeUser(user), password, nil
 }
 
 func (s *Service) UpdateUser(username string, role Role, permissions []Permission) (User, error) {
@@ -250,6 +322,7 @@ func (s *Service) UpdateUser(username string, role Role, permissions []Permissio
 	now := time.Now().UTC()
 	var updated User
 	if err := s.store.update(func(state *State) error {
+		pruneExpiredAccess(state, now)
 		index := findUserIndex(state.Users, normalizedUsername)
 		if index < 0 {
 			return ErrUserNotFound
@@ -262,6 +335,9 @@ func (s *Service) UpdateUser(username string, role Role, permissions []Permissio
 			return ErrLastAdminRequired
 		}
 
+		if user.Temporary && role != RoleUser {
+			return ErrTemporaryUserRoleLocked
+		}
 		user.Role = role
 		if role == RoleAdmin {
 			user.Permissions = clonePermissions(AllPermissions)
@@ -283,6 +359,7 @@ func (s *Service) DeleteUser(username string) error {
 		return err
 	}
 	return s.store.update(func(state *State) error {
+		pruneExpiredAccess(state, time.Now().UTC())
 		index := findUserIndex(state.Users, normalizedUsername)
 		if index < 0 {
 			return ErrUserNotFound
@@ -342,12 +419,27 @@ func normalizePermissions(input []Permission) []Permission {
 	return normalized
 }
 
-func pruneExpiredSessions(state *State, now time.Time) {
+func pruneExpiredAccess(state *State, now time.Time) {
+	activeUsers := state.Users[:0]
+	activeUsernames := make(map[string]struct{}, len(state.Users))
+	for _, user := range state.Users {
+		if isUserExpired(user, now) {
+			continue
+		}
+		activeUsers = append(activeUsers, user)
+		activeUsernames[normalizedUsernameKey(user.Username)] = struct{}{}
+	}
+	state.Users = activeUsers
+
 	filtered := state.Sessions[:0]
 	for _, session := range state.Sessions {
-		if session.ExpiresAt.After(now) {
-			filtered = append(filtered, session)
+		if !session.ExpiresAt.After(now) {
+			continue
 		}
+		if _, ok := activeUsernames[normalizedUsernameKey(session.Username)]; !ok {
+			continue
+		}
+		filtered = append(filtered, session)
 	}
 	state.Sessions = filtered
 }
@@ -372,11 +464,11 @@ func findUserIndex(users []User, username string) int {
 }
 
 func sameUsername(left, right string) bool {
-	return strings.EqualFold(strings.TrimSpace(left), strings.TrimSpace(right))
+	return normalizedUsernameKey(left) == normalizedUsernameKey(right)
 }
 
 func normalizeUsername(value string) (string, error) {
-	normalized := strings.ToLower(strings.TrimSpace(value))
+	normalized := normalizedUsernameKey(value)
 	if len(normalized) < 3 || len(normalized) > 64 {
 		return "", ErrInvalidUsername
 	}
@@ -389,6 +481,54 @@ func validatePassword(value string) error {
 		return ErrInvalidPassword
 	}
 	return nil
+}
+
+func normalizedUsernameKey(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func isUserExpired(user User, now time.Time) bool {
+	if !user.Temporary {
+		return false
+	}
+	return user.ExpiresAt == nil || !user.ExpiresAt.After(now)
+}
+
+func sessionExpiryForUser(user User, now time.Time) time.Time {
+	expiresAt := now.Add(defaultSessionLifetime)
+	if user.Temporary && user.ExpiresAt != nil && user.ExpiresAt.Before(expiresAt) {
+		return user.ExpiresAt.UTC()
+	}
+	return expiresAt
+}
+
+func newTemporaryUsername(existing []User) (string, error) {
+	for range tempUsernameMaxAttempts {
+		suffix, err := randomString(tempUsernameLength, tempUsernameAlphabet)
+		if err != nil {
+			return "", err
+		}
+		username := "tmp-" + suffix
+		if findUserIndex(existing, username) < 0 {
+			return username, nil
+		}
+	}
+	return "", errors.New("failed to generate temporary username")
+}
+
+func randomString(length int, alphabet string) (string, error) {
+	if length <= 0 || len(alphabet) == 0 {
+		return "", nil
+	}
+	bytes := make([]byte, length)
+	randomBytes := make([]byte, length)
+	if _, err := rand.Read(randomBytes); err != nil {
+		return "", fmt.Errorf("generate random string: %w", err)
+	}
+	for i := range bytes {
+		bytes[i] = alphabet[int(randomBytes[i])%len(alphabet)]
+	}
+	return string(bytes), nil
 }
 
 func newSessionToken() (string, error) {

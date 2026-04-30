@@ -20,6 +20,7 @@ export const signIn = (payload) => api.post('/auth/sign-in', payload)
 export const signOut = () => api.post('/auth/sign-out')
 export const getCurrentUser = () => api.get('/auth/me')
 export const listUsers = () => api.get('/users')
+export const createTemporaryUser = (payload) => api.post('/users/temp', payload)
 export const updateUser = (username, payload) => api.put(`/users/${encodeURIComponent(username)}`, payload)
 export const deleteUserAccount = (username) => api.delete(`/users/${encodeURIComponent(username)}`)
 

@@ -58,6 +58,7 @@ func NewRouter(client *storage.Client, service *app.Service, cfg *config.Config)
 		authenticated.POST("/auth/sign-out", h.SignOut)
 
 		authenticated.GET("/users", h.requireAdmin(), h.ListUsers)
+		authenticated.POST("/users/temp", h.requireAdmin(), h.CreateTemporaryUser)
 		authenticated.PUT("/users/:username", h.requireAdmin(), h.UpdateUser)
 		authenticated.DELETE("/users/:username", h.requireAdmin(), h.DeleteUser)
 

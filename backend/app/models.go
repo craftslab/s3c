@@ -136,6 +136,8 @@ type User struct {
 	Permissions  []Permission `json:"permissions,omitempty"`
 	PasswordHash string       `json:"-"`
 	Builtin      bool         `json:"builtin,omitempty"`
+	Temporary    bool         `json:"temporary,omitempty"`
+	ExpiresAt    *time.Time   `json:"expiresAt,omitempty"`
 	CreatedAt    time.Time    `json:"createdAt"`
 	UpdatedAt    time.Time    `json:"updatedAt"`
 }

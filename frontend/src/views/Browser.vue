@@ -435,12 +435,25 @@
     </el-drawer>
 
     <el-drawer v-model="showUsersDrawer" title="Users" size="60%">
-      <div class="drawer-actions"><el-button :icon="Refresh" @click="refreshUsers">Refresh</el-button></div>
+      <div class="drawer-actions">
+        <el-button type="primary" @click="openCreateTempUserDialog">Create Temporary User</el-button>
+        <el-button :icon="Refresh" @click="refreshUsers">Refresh</el-button>
+      </div>
       <el-table :data="users" size="small">
         <el-table-column prop="username" label="Username" min-width="160" />
+        <el-table-column label="Type" width="120">
+          <template #default="{ row }">
+            <el-tag :type="row.temporary ? 'warning' : 'info'">{{ row.temporary ? 'temporary' : 'standard' }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="Role" width="120">
           <template #default="{ row }">
             <el-tag :type="row.role === 'admin' ? 'danger' : 'info'">{{ row.role }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="Expires" width="190">
+          <template #default="{ row }">
+            <span>{{ row.temporary ? formatDate(row.expiresAt) : '—' }}</span>
           </template>
         </el-table-column>
         <el-table-column label="Permissions" min-width="280">
@@ -470,13 +483,59 @@
       </el-table>
     </el-drawer>
 
+    <el-dialog v-model="showCreateTempUserDialog" title="Create Temporary User" width="620px" @closed="resetTempUserDialog">
+      <el-form label-width="120px">
+        <el-form-item label="Expires At">
+          <el-date-picker
+            v-model="tempUserForm.expiresAt"
+            type="datetime"
+            style="width:100%"
+            placeholder="Select expiry time"
+          />
+        </el-form-item>
+        <el-form-item label="Permissions">
+          <div class="user-edit-permissions">
+            <el-checkbox-group v-model="tempUserForm.permissions">
+              <el-checkbox v-for="permission in permissionOptions" :key="permission.value" :label="permission.value">
+                {{ permission.label }}
+              </el-checkbox>
+            </el-checkbox-group>
+          </div>
+          <div class="field-hint">Temporary users always use the standard user role and can only access selected capabilities.</div>
+        </el-form-item>
+      </el-form>
+      <div v-if="generatedTempCredentials" class="generated-credentials">
+        <div class="drawer-subtitle">Generated Credentials</div>
+        <el-form label-width="120px">
+          <el-form-item label="Username">
+            <el-input :model-value="generatedTempCredentials.username" readonly>
+              <template #append><el-button :icon="CopyDocument" @click="copyToClipboard(generatedTempCredentials.username)">Copy</el-button></template>
+            </el-input>
+          </el-form-item>
+          <el-form-item label="Password">
+            <el-input :model-value="generatedTempCredentials.password" type="password" readonly show-password>
+              <template #append><el-button :icon="CopyDocument" @click="copyToClipboard(generatedTempCredentials.password)">Copy</el-button></template>
+            </el-input>
+          </el-form-item>
+          <div class="field-hint">Please copy the password now. It is only returned once.</div>
+        </el-form>
+      </div>
+      <template #footer>
+        <el-button @click="showCreateTempUserDialog = false">Close</el-button>
+        <el-button type="primary" @click="createTemporaryUserAction">Create</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="showEditUserDialog" title="Edit User" width="560px">
       <el-form v-if="editableUser" label-width="100px">
         <el-form-item label="Username">
           <span class="link-meta">{{ editableUser.username }}</span>
         </el-form-item>
+        <el-form-item v-if="editableUser.temporary" label="Expires At">
+          <span class="link-meta">{{ formatDate(editableUser.expiresAt) }}</span>
+        </el-form-item>
         <el-form-item label="Role">
-          <el-select v-model="editableUser.role" style="width:100%" :disabled="editableUser.builtin">
+          <el-select v-model="editableUser.role" style="width:100%" :disabled="editableUser.builtin || editableUser.temporary">
             <el-option label="Admin" value="admin" />
             <el-option label="User" value="user" />
           </el-select>
@@ -554,6 +613,7 @@ import {
   completeResumableUpload,
   abortResumableUpload,
   listUsers,
+  createTemporaryUser,
   updateUser,
   deleteUserAccount
 } from '../api'
@@ -626,7 +686,15 @@ const webhooks = ref([])
 const deliveries = ref([])
 const showUsersDrawer = ref(false)
 const users = ref([])
+const DEFAULT_TEMP_USER_LIFETIME_MS = 24 * 60 * 60 * 1000
+const DEFAULT_TEMP_USER_PERMISSIONS = ['upload', 'download', 'search', 'presign']
+const showCreateTempUserDialog = ref(false)
+const generatedTempCredentials = ref(null)
 const showEditUserDialog = ref(false)
+const tempUserForm = ref({
+  expiresAt: new Date(Date.now() + DEFAULT_TEMP_USER_LIFETIME_MS),
+  permissions: [...DEFAULT_TEMP_USER_PERMISSIONS]
+})
 const editableUser = ref(null)
 const webhookEvents = [
   'object.uploaded',
@@ -1324,6 +1392,11 @@ function openUsersDrawer() {
   refreshUsers()
 }
 
+function openCreateTempUserDialog() {
+  resetTempUserDialog()
+  showCreateTempUserDialog.value = true
+}
+
 async function refreshTasks() {
   try {
     const { data } = await listTasks({ bucket: currentBucket.value || undefined })
@@ -1471,9 +1544,35 @@ function openEditUserDialog(user) {
     username: user.username,
     role: user.role,
     permissions: [...(user.permissions || [])],
-    builtin: Boolean(user.builtin)
+    builtin: Boolean(user.builtin),
+    temporary: Boolean(user.temporary),
+    expiresAt: user.expiresAt || ''
   }
   showEditUserDialog.value = true
+}
+
+async function createTemporaryUserAction() {
+  const expiresAt = tempUserForm.value.expiresAt ? new Date(tempUserForm.value.expiresAt) : null
+  if (!expiresAt || Number.isNaN(expiresAt.getTime())) {
+    return ElMessage.warning('Please select a valid expiry time')
+  }
+  if (expiresAt.getTime() <= Date.now()) {
+    return ElMessage.warning('Expiry time must be in the future')
+  }
+  if (!tempUserForm.value.permissions.length) {
+    return ElMessage.warning('Select at least one permission')
+  }
+  try {
+    const { data } = await createTemporaryUser({
+      expiresAt: expiresAt.toISOString(),
+      permissions: tempUserForm.value.permissions
+    })
+    generatedTempCredentials.value = data.credentials || null
+    ElMessage.success('Temporary user created')
+    await refreshUsers()
+  } catch (error) {
+    ElMessage.error('Failed to create temporary user: ' + (error.response?.data?.error || error.message))
+  }
 }
 
 async function saveUserAction() {
@@ -1499,6 +1598,14 @@ async function confirmDeleteUser(user) {
     await refreshUsers()
   } catch (error) {
     if (error !== 'cancel') ElMessage.error('Failed to delete user: ' + (error.response?.data?.error || error.message))
+  }
+}
+
+function resetTempUserDialog() {
+  generatedTempCredentials.value = null
+  tempUserForm.value = {
+    expiresAt: new Date(Date.now() + DEFAULT_TEMP_USER_LIFETIME_MS),
+    permissions: [...DEFAULT_TEMP_USER_PERMISSIONS]
   }
 }
 
@@ -1989,6 +2096,11 @@ function formatDate(value) {
   margin-top: 16px;
 }
 
+.generated-credentials {
+  margin-top: 20px;
+  padding-top: 8px;
+}
+
 .link-meta {
   word-break: break-all;
 }
@@ -2003,6 +2115,12 @@ function formatDate(value) {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.field-hint {
+  margin-top: 8px;
+  color: #6f6256;
+  font-size: 12px;
 }
 
 .rename-item {

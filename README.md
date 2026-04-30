@@ -15,6 +15,7 @@
 - 🧰 Batch download, move, rename, and delete for files/folders
 - 🔎 Search objects by name, size, prefix, and modification time
 - 🧾 Built-in task center, operation history, cleanup policies, and webhook
+- 👤 Admin-managed temporary users with random credentials, configurable expiry, and scoped permissions
 - 🐳 One-command **Docker Compose** deployment (MinIO + backend + frontend)
 
 ## Architecture
@@ -103,7 +104,7 @@ npm run dev
 
 ## API Reference
 
-All `/api/v1/*` routes except `/api/v1/auth/sign-up` and `/api/v1/auth/sign-in` require a `Bearer` token. Sign-up creates a normal user account with default permissions for `upload`, `download`, `search`, and `presign`. Admin users can change user roles and permissions in the UI.
+All `/api/v1/*` routes except `/api/v1/auth/sign-up` and `/api/v1/auth/sign-in` require a `Bearer` token. Sign-up creates a normal user account with default permissions for `upload`, `download`, `search`, and `presign`. Admin users can change user roles and permissions in the UI, and can create temporary users with random credentials plus an explicit expiry.
 
 | Method | Path | Description |
 |---|---|---|
@@ -112,6 +113,7 @@ All `/api/v1/*` routes except `/api/v1/auth/sign-up` and `/api/v1/auth/sign-in` 
 | GET | `/api/v1/auth/me` | Get current signed-in user |
 | POST | `/api/v1/auth/sign-out` | Sign out current session |
 | GET | `/api/v1/users` | List users (admin only) |
+| POST | `/api/v1/users/temp` | Create a temporary user with random credentials, expiry, and permissions (admin only) |
 | PUT | `/api/v1/users/:username` | Update a user's role and permissions (admin only) |
 | DELETE | `/api/v1/users/:username` | Delete a user (admin only) |
 | GET | `/api/v1/buckets` | List buckets |
@@ -144,6 +146,7 @@ All `/api/v1/*` routes except `/api/v1/auth/sign-up` and `/api/v1/auth/sign-in` 
 
 - `admin` users have full access to every operation.
 - `user` accounts can be granted these permissions individually: `upload`, `download`, `create`, `delete`, `move`, `rename`, `search`, `cleanup`, `webhook`, `presign`.
+- Temporary users always use the `user` role, must have an expiry, and automatically lose access after the configured time.
 - Shared `/upload` and `/download` proxy routes continue to work with presigned links and do not require sign-in.
 
 ### Presigned URL endpoints

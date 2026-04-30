@@ -15,6 +15,7 @@
 - 🧰 批量下载、移动、重命名和删除文件/文件夹
 - 🔎 按名称、大小、前缀和修改时间搜索对象
 - 🧾 内置任务中心、操作历史、清理策略和 Webhook
+- 👤 支持管理员创建随机账号密码的临时用户，并配置有效期与权限范围
 - 🐳 一条命令完成 **Docker Compose** 部署（MinIO + backend + frontend）
 
 ## 架构
@@ -103,7 +104,7 @@ npm run dev
 
 ## API 参考
 
-除 `/api/v1/auth/sign-up` 和 `/api/v1/auth/sign-in` 外，所有 `/api/v1/*` 接口都需要 `Bearer` token。注册默认会创建普通用户账号，并授予 `upload`、`download`、`search`、`presign` 四项默认权限；管理员可在界面中调整用户角色和权限。
+除 `/api/v1/auth/sign-up` 和 `/api/v1/auth/sign-in` 外，所有 `/api/v1/*` 接口都需要 `Bearer` token。注册默认会创建普通用户账号，并授予 `upload`、`download`、`search`、`presign` 四项默认权限；管理员可在界面中调整用户角色和权限，也可创建带随机账号密码和过期时间的临时用户。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -112,6 +113,7 @@ npm run dev
 | GET | `/api/v1/auth/me` | 获取当前登录用户 |
 | POST | `/api/v1/auth/sign-out` | 登出当前会话 |
 | GET | `/api/v1/users` | 列出用户（仅管理员） |
+| POST | `/api/v1/users/temp` | 创建带随机凭证、过期时间和权限的临时用户（仅管理员） |
 | PUT | `/api/v1/users/:username` | 更新用户角色和权限（仅管理员） |
 | DELETE | `/api/v1/users/:username` | 删除用户（仅管理员） |
 | GET | `/api/v1/buckets` | 列出桶 |
@@ -139,6 +141,7 @@ npm run dev
 
 - `admin` 拥有全部操作权限。
 - `user` 可单独授予这些权限：`upload`、`download`、`create`、`delete`、`move`、`rename`、`search`、`cleanup`、`webhook`、`presign`。
+- 临时用户固定使用 `user` 角色，必须设置过期时间，并会在过期后自动失效。
 - 基于预签名链接的共享 `/upload` 和 `/download` 代理路由仍可匿名访问。
 
 ### 预签名 URL 接口

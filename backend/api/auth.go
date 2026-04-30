@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/craftslab/kipup/backend/app"
 	"github.com/gin-gonic/gin"
@@ -18,6 +19,11 @@ type authRequest struct {
 
 type updateUserRequest struct {
 	Role        app.Role         `json:"role" binding:"required"`
+	Permissions []app.Permission `json:"permissions"`
+}
+
+type createTemporaryUserRequest struct {
+	ExpiresAt   string           `json:"expiresAt" binding:"required"`
 	Permissions []app.Permission `json:"permissions"`
 }
 
@@ -117,6 +123,31 @@ func (h *Handler) ListUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, h.service.ListUsers())
 }
 
+func (h *Handler) CreateTemporaryUser(c *gin.Context) {
+	var req createTemporaryUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	expiresAt, err := time.Parse(time.RFC3339, strings.TrimSpace(req.ExpiresAt))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "expiresAt must be a valid RFC3339 timestamp"})
+		return
+	}
+	user, password, err := h.service.CreateTemporaryUser(expiresAt, req.Permissions)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{
+		"user": user,
+		"credentials": gin.H{
+			"username": user.Username,
+			"password": password,
+		},
+	})
+}
+
 func (h *Handler) UpdateUser(c *gin.Context) {
 	var req updateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -129,7 +160,7 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		switch {
 		case errors.Is(err, app.ErrUserNotFound):
 			status = http.StatusNotFound
-		case errors.Is(err, app.ErrForbidden), errors.Is(err, app.ErrBuiltinAdminLocked), errors.Is(err, app.ErrLastAdminRequired):
+		case errors.Is(err, app.ErrForbidden), errors.Is(err, app.ErrBuiltinAdminLocked), errors.Is(err, app.ErrLastAdminRequired), errors.Is(err, app.ErrTemporaryUserRoleLocked):
 			status = http.StatusForbidden
 		}
 		c.JSON(status, gin.H{"error": err.Error()})
