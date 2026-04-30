@@ -423,8 +423,9 @@ func parseOptionalRFC3339(raw string) (*time.Time, error) {
 	}
 	value, err := time.Parse(time.RFC3339, raw)
 	if err != nil {
-		return nil, errors.New("expiresAt must be a valid RFC3339 timestamp")
+		return nil, errors.New("expiresAt must be a valid RFC3339 timestamp such as 2006-01-02T15:04:05Z07:00")
 	}
+	value = value.UTC()
 	return &value, nil
 }
 
@@ -435,6 +436,8 @@ func writeCollaborationError(c *gin.Context, err error) {
 		status = http.StatusUnauthorized
 	case errors.Is(err, app.ErrCollaborationSessionNotFound), errors.Is(err, app.ErrCollaborationAttachmentNotFound), errors.Is(err, app.ErrCollaborationFileNotFound):
 		status = http.StatusNotFound
+	case errors.Is(err, app.ErrInvalidCollaborationExpiry):
+		status = http.StatusBadRequest
 	case errors.Is(err, app.ErrCollaborationAccessDenied), errors.Is(err, app.ErrCollaborationManageDenied):
 		status = http.StatusForbidden
 	case errors.Is(err, app.ErrCollaborationSessionExpired), errors.Is(err, app.ErrCollaborationSessionClosed):
@@ -480,7 +483,7 @@ func (h *Handler) statObject(c *gin.Context, bucket, key string) (string, error)
 		return "", err
 	}
 	if strings.HasSuffix(info.Key, "/") {
-		return "", errors.New("directories cannot be attached as shared files")
+		return "", errors.New("only files can be shared; directory markers are not supported")
 	}
 	return path.Base(info.Key), nil
 }

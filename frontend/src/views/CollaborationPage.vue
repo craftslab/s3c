@@ -7,7 +7,7 @@
           <h1>{{ session.title }}</h1>
           <p class="subtitle">
             {{ session.bucket }}<span v-if="session.prefix"> / {{ session.prefix }}</span>
-            · Created by {{ session.creator }}
+            • Created by {{ session.creator }}
           </p>
           <div class="hero-meta">
             <el-tag type="info">{{ session.status }}</el-tag>
@@ -112,7 +112,7 @@
               <div v-for="attachment in attachments" :key="attachment.id" class="file-item">
                 <div>
                   <strong>{{ attachment.name }}</strong>
-                  <p>{{ attachment.uploadedBy }} · {{ formatDate(attachment.createdAt) }}</p>
+                  <p>{{ attachment.uploadedBy }} • {{ formatDate(attachment.createdAt) }}</p>
                 </div>
                 <div class="file-actions">
                   <el-button size="small" @click="downloadAttachment(attachment)">Download</el-button>
@@ -163,7 +163,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -375,7 +375,7 @@ function toggleVoiceInput() {
     return
   }
   speechRecognition = new Recognition()
-  speechRecognition.lang = 'zh-CN'
+  speechRecognition.lang = normalizeRecognitionLanguage(navigator.language)
   speechRecognition.interimResults = true
   speechRecognition.continuous = true
   speechRecognition.onresult = (event) => {
@@ -595,7 +595,6 @@ async function ensurePeerConnection(username) {
 
 function setRemoteStream(username, stream) {
   remoteStreams.value = [...remoteStreams.value.filter((item) => item.username !== username), { username, stream }]
-  nextTick(() => bindRemoteVideo(document.querySelector(`[data-remote-video="${username}"]`), username))
 }
 
 function bindRemoteVideo(element, username) {
@@ -646,8 +645,8 @@ async function handleSignal(payload) {
   if (payload.candidate) {
     try {
       await connection.addIceCandidate(payload.candidate)
-    } catch {
-      // ignore transient candidate timing issues
+    } catch (error) {
+      console.debug('Ignoring transient ICE candidate issue', error)
     }
   }
 }
@@ -678,6 +677,28 @@ function parseAllowedUsers(value) {
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleString() : ''
+}
+
+function normalizeRecognitionLanguage(value) {
+  const language = typeof value === 'string' ? value.trim() : ''
+  if (!language) return 'en-US'
+  if (/^[a-z]{2}$/i.test(language)) {
+    const defaults = {
+      en: 'en-US',
+      zh: 'zh-CN',
+      ja: 'ja-JP',
+      ko: 'ko-KR',
+      fr: 'fr-FR',
+      de: 'de-DE',
+      es: 'es-ES'
+    }
+    return defaults[language.toLowerCase()] || 'en-US'
+  }
+  if (/^[a-z]{2}-[a-z]{2}$/i.test(language)) {
+    const [base, region] = language.split('-')
+    return `${base.toLowerCase()}-${region.toUpperCase()}`
+  }
+  return 'en-US'
 }
 </script>
 

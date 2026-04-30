@@ -74,8 +74,9 @@ func TestCollaborationSessionExpiryAndClosure(t *testing.T) {
 		t.Fatalf("GetCollaborationSession() error = %v, want %v", err, ErrCollaborationSessionClosed)
 	}
 
+	activeUntil := time.Now().UTC().Add(30 * time.Minute)
 	expiredAt := time.Now().UTC().Add(-time.Minute)
-	expiredSession, err := service.CreateCollaborationSession(creator, "Expired", "team-bucket", "", nil, &expiresAt)
+	expiredSession, err := service.CreateCollaborationSession(creator, "Expired", "team-bucket", "", nil, &activeUntil)
 	if err != nil {
 		t.Fatalf("CreateCollaborationSession() error = %v", err)
 	}

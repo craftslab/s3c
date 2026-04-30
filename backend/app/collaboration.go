@@ -16,6 +16,7 @@ var (
 	ErrCollaborationAccessDenied       = errors.New("collaboration access denied")
 	ErrCollaborationSessionClosed      = errors.New("collaboration session is closed")
 	ErrCollaborationSessionExpired     = errors.New("collaboration session has expired")
+	ErrInvalidCollaborationExpiry      = errors.New("collaboration session expiry must be in the future")
 	ErrInvalidCollaborationTitle       = errors.New("collaboration title is required")
 	ErrInvalidCollaborationBucket      = errors.New("collaboration bucket is required")
 	ErrCollaborationMessageEmpty       = errors.New("message content is required")
@@ -28,6 +29,7 @@ var (
 const (
 	CollaborationSessionActive CollaborationSessionStatus = "active"
 	CollaborationSessionClosed CollaborationSessionStatus = "closed"
+	maxCollaborationMessages   int                        = 500
 )
 
 type CollaborationSessionStatus string
@@ -256,11 +258,12 @@ func (s *Service) CreateCollaborationSession(user User, title, bucket, prefix st
 	if err != nil {
 		return CollaborationSession{}, err
 	}
+	now := time.Now().UTC()
 	var normalizedExpiry *time.Time
 	if expiresAt != nil {
 		expires := expiresAt.UTC()
-		if !expires.After(time.Now().UTC()) {
-			return CollaborationSession{}, ErrInvalidUserExpiry
+		if !expires.After(now) {
+			return CollaborationSession{}, ErrInvalidCollaborationExpiry
 		}
 		normalizedExpiry = &expires
 	}
@@ -268,7 +271,6 @@ func (s *Service) CreateCollaborationSession(user User, title, bucket, prefix st
 	if err != nil {
 		return CollaborationSession{}, err
 	}
-	now := time.Now().UTC()
 	session := CollaborationSession{
 		ID:               newID("collaboration"),
 		Token:            token,
@@ -318,7 +320,7 @@ func (s *Service) UpdateCollaborationSession(token string, user User, update Col
 	if update.ExpiresAt != nil {
 		expires := update.ExpiresAt.UTC()
 		if !expires.After(now) {
-			return CollaborationSession{}, ErrInvalidUserExpiry
+			return CollaborationSession{}, ErrInvalidCollaborationExpiry
 		}
 		normalizedExpiry = &expires
 	}
@@ -412,8 +414,10 @@ func (s *Service) AddCollaborationMessage(token string, user User, content strin
 			return err
 		}
 		session.Messages = append(session.Messages, message)
-		if len(session.Messages) > 500 {
-			session.Messages = session.Messages[len(session.Messages)-500:]
+		// Persist only the newest messages once the room history reaches the cap so
+		// older messages are discarded first.
+		if len(session.Messages) > maxCollaborationMessages {
+			session.Messages = session.Messages[len(session.Messages)-maxCollaborationMessages:]
 		}
 		session.UpdatedAt = now
 		return nil
@@ -639,7 +643,11 @@ func (s *Service) AttachmentObjectKey(session CollaborationSession, filename str
 	if name == "." || name == "/" || name == "" {
 		return "", errors.New("attachment filename is required")
 	}
-	return fmt.Sprintf("%s%d-%s", session.AttachmentPrefix, time.Now().UTC().UnixNano(), name), nil
+	suffix, err := randomString(8, "abcdefghijklmnopqrstuvwxyz0123456789")
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s%d-%s-%s", session.AttachmentPrefix, time.Now().UTC().UnixNano(), suffix, name), nil
 }
 
 func findActiveUser(users []User, username string, now time.Time) (User, bool) {
