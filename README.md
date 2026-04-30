@@ -10,6 +10,7 @@
 - ⬆️ **Batch upload** of files and folders with per-item progress, resumable multipart transfer, and task tracking
 - ⬇️ **Streaming download** of large files – objects are piped from S3 straight to the browser
 - 🔗 **Presigned URLs** – generate time-limited download or upload links shareable without credentials (configurable expiry, default 24 h, max 7 days)
+- 💬 **Collaboration rooms** – create login-protected collaboration links with user allowlists, live chat, attachments, shared S3 file references, voice input, and WebRTC video signaling
 - ➕ Create / 🗑️ delete buckets
 - 🗑️ Delete individual files or entire folders (recursive)
 - 🧰 Batch download, move, rename, and delete for files/folders
@@ -141,6 +142,17 @@ All `/api/v1/*` routes except `/api/v1/auth/sign-up` and `/api/v1/auth/sign-in` 
 | GET | `/api/v1/webhook-deliveries` | List recent webhook deliveries |
 | GET | `/api/v1/presign/download/:bucket/*key` | Generate presigned download URL |
 | GET | `/api/v1/presign/upload/:bucket/*key` | Generate presigned upload URL |
+| GET/POST | `/api/v1/collaboration/sessions` | List or create collaboration sessions |
+| GET/PUT/DELETE | `/api/v1/collaboration/sessions/:token` | Get, update, or delete a collaboration session |
+| POST | `/api/v1/collaboration/sessions/:token/close` | Close a collaboration session |
+| POST | `/api/v1/collaboration/sessions/:token/messages` | Send a chat message |
+| POST | `/api/v1/collaboration/sessions/:token/attachments` | Upload an attachment into the room |
+| GET/DELETE | `/api/v1/collaboration/sessions/:token/attachments/:attachmentId/*` | Download or delete an attachment |
+| POST | `/api/v1/collaboration/sessions/:token/files` | Add an existing S3 object to the room's shared file list |
+| GET/DELETE | `/api/v1/collaboration/sessions/:token/files/:fileId/*` | Download or remove a shared file reference |
+| POST | `/api/v1/collaboration/sessions/:token/stream-token` | Create an SSE stream token for realtime collaboration events |
+| GET | `/api/v1/collaboration/sessions/:token/stream?streamToken=` | Receive realtime room updates via SSE |
+| POST | `/api/v1/collaboration/sessions/:token/signal` | Exchange WebRTC signaling payloads |
 
 ### Role and permission model
 
@@ -185,6 +197,14 @@ GET /api/v1/presign/upload/:bucket/*key?expiry=3600
 ```
 
 In the web UI, **Generate Download Link** now creates a shared page that can both download the current file and upload a replacement using the same selected expiry.
+
+### Collaboration rooms
+
+- Collaboration links use `/collaboration/:token` and require sign-in before access is granted.
+- Access is limited to the session creator, admins, and explicitly allowed usernames (including temporary users).
+- Attachments are stored under an isolated `.kipup/collaboration/<token>/attachments/` prefix inside the selected bucket.
+- Shared S3 files are references to existing objects; adding them to a room does not copy the object.
+- The collaboration page provides text chat, browser voice-to-text input, and WebRTC signaling for camera/audio conversations.
 
 ## License
 

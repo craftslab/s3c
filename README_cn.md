@@ -10,6 +10,7 @@
 - ⬆️ **流式上传**大文件——文件直接从浏览器传输到 S3，无需先缓冲到磁盘
 - ⬇️ **流式下载**大文件——对象直接从 S3 传输到浏览器
 - 🔗 **预签名 URL**——生成无需凭证即可分享的限时下载或上传链接（过期时间可配置，默认 24 小时，最长 7 天）
+- 💬 **协作会话**——创建登录后可访问的在线协作链接，支持用户白名单、实时聊天、附件管理、S3 文件引用、语音输入和 WebRTC 视频信令
 - ➕ 创建 / 🗑️ 删除桶
 - 🗑️ 删除单个文件或整个文件夹（递归）
 - 🧰 批量下载、移动、重命名和删除文件/文件夹
@@ -136,6 +137,17 @@ npm run dev
 | GET | `/api/v1/webhook-deliveries` | 列出最近的 Webhook 投递记录 |
 | GET | `/api/v1/presign/download/:bucket/*key` | 生成预签名下载 URL |
 | GET | `/api/v1/presign/upload/:bucket/*key` | 生成预签名上传 URL |
+| GET/POST | `/api/v1/collaboration/sessions` | 列出或创建协作会话 |
+| GET/PUT/DELETE | `/api/v1/collaboration/sessions/:token` | 获取、更新或删除协作会话 |
+| POST | `/api/v1/collaboration/sessions/:token/close` | 关闭协作会话 |
+| POST | `/api/v1/collaboration/sessions/:token/messages` | 发送聊天消息 |
+| POST | `/api/v1/collaboration/sessions/:token/attachments` | 上传会话附件 |
+| GET/DELETE | `/api/v1/collaboration/sessions/:token/attachments/:attachmentId/*` | 下载或删除附件 |
+| POST | `/api/v1/collaboration/sessions/:token/files` | 将已存在的 S3 对象加入共享文件列表 |
+| GET/DELETE | `/api/v1/collaboration/sessions/:token/files/:fileId/*` | 下载或移除共享文件引用 |
+| POST | `/api/v1/collaboration/sessions/:token/stream-token` | 生成 SSE 实时流令牌 |
+| GET | `/api/v1/collaboration/sessions/:token/stream?streamToken=` | 通过 SSE 接收实时协作事件 |
+| POST | `/api/v1/collaboration/sessions/:token/signal` | 交换 WebRTC 信令数据 |
 
 ### 角色与权限模型
 
@@ -180,6 +192,14 @@ GET /api/v1/presign/upload/:bucket/*key?expiry=3600
 ```
 
 在 Web 界面中，**生成下载链接** 现在会生成一个共享页面，既可下载当前文件，也可在相同的有效期内上传替换文件。
+
+### 协作会话
+
+- 协作链接使用 `/collaboration/:token`，打开后会先进入登录流程，再校验是否在允许访问名单中。
+- 会话创建者、管理员以及白名单中的普通用户/临时用户均可进入协作页。
+- 会话附件会隔离保存到所选桶下的 `.kipup/collaboration/<token>/attachments/` 前缀中，避免误删业务对象。
+- “共享文件”仅保存对现有 S3 对象的引用，不会复制原始文件。
+- 协作页提供文字聊天、浏览器语音转文字输入，以及基于 WebRTC 信令的摄像头/语音通话能力。
 
 ## 许可证
 

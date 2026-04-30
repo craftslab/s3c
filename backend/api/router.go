@@ -51,6 +51,7 @@ func NewRouter(client *storage.Client, service *app.Service, cfg *config.Config)
 	{
 		v1.POST("/auth/sign-up", h.SignUp)
 		v1.POST("/auth/sign-in", h.SignIn)
+		v1.GET("/collaboration/sessions/:token/stream", h.StreamCollaboration)
 
 		authenticated := v1.Group("/")
 		authenticated.Use(h.requireAuth())
@@ -99,6 +100,22 @@ func NewRouter(client *storage.Client, service *app.Service, cfg *config.Config)
 
 		authenticated.GET("/presign/download/:bucket/*key", h.requirePermission(app.PermissionPresign), h.GenerateDownloadLink)
 		authenticated.GET("/presign/upload/:bucket/*key", h.requirePermission(app.PermissionPresign), h.GenerateUploadLink)
+
+		authenticated.GET("/collaboration/sessions", h.ListCollaborationSessions)
+		authenticated.POST("/collaboration/sessions", h.CreateCollaborationSession)
+		authenticated.GET("/collaboration/sessions/:token", h.GetCollaborationSession)
+		authenticated.PUT("/collaboration/sessions/:token", h.UpdateCollaborationSession)
+		authenticated.POST("/collaboration/sessions/:token/close", h.CloseCollaborationSession)
+		authenticated.DELETE("/collaboration/sessions/:token", h.DeleteCollaborationSession)
+		authenticated.POST("/collaboration/sessions/:token/messages", h.CreateCollaborationMessage)
+		authenticated.POST("/collaboration/sessions/:token/attachments", h.CreateCollaborationAttachment)
+		authenticated.GET("/collaboration/sessions/:token/attachments/:attachmentId/download", h.DownloadCollaborationAttachment)
+		authenticated.DELETE("/collaboration/sessions/:token/attachments/:attachmentId", h.DeleteCollaborationAttachment)
+		authenticated.POST("/collaboration/sessions/:token/files", h.CreateCollaborationSharedFile)
+		authenticated.GET("/collaboration/sessions/:token/files/:fileId/download", h.DownloadCollaborationSharedFile)
+		authenticated.DELETE("/collaboration/sessions/:token/files/:fileId", h.DeleteCollaborationSharedFile)
+		authenticated.POST("/collaboration/sessions/:token/stream-token", h.CreateCollaborationStreamToken)
+		authenticated.POST("/collaboration/sessions/:token/signal", h.PublishCollaborationSignal)
 	}
 
 	return r
