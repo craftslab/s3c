@@ -7,17 +7,17 @@
 ## Features
 
 - 📁 Browse buckets and folders in a clean file-browser UI
-- ⬆️ **Batch upload** of files and folders with per-item progress, resumable multipart transfer, and task tracking
-- ⬇️ **Streaming download** of large files – objects are piped from S3 straight to the browser
-- 🔗 **Presigned URLs** – generate time-limited download or upload links shareable without credentials (configurable expiry, default 24 h, max 7 days)
-- 💬 **Collaboration rooms** – create login-protected collaboration links with user allowlists, live chat, attachments, shared S3 file references, voice input, and WebRTC video signaling
+- ⬆️ Batch upload of files and folders with per-item progress, resumable multipart transfer, and task tracking
+- ⬇️ Streaming download of large files – objects are piped from S3 straight to the browser
+- 🔗 Presigned URLs – generate time-limited download or upload links shareable without credentials (configurable expiry, default 24 h, max 7 days)
+- 💬 Collaboration rooms – create login-protected collaboration links with user allowlists, live chat, attachments, shared S3 file references, voice input, and WebRTC video signaling
 - ➕ Create / 🗑️ delete buckets
 - 🗑️ Delete individual files or entire folders (recursive)
 - 🧰 Batch download, move, rename, and delete for files/folders
 - 🔎 Search objects by name, size, prefix, and modification time
 - 🧾 Built-in task center, operation history, cleanup policies, and webhook
 - 👤 Admin-managed temporary users with random credentials, configurable expiry, and scoped permissions
-- 🐳 One-command **Docker Compose** deployment (MinIO + backend + frontend)
+- 🐳 One-command Docker Compose deployment (MinIO + backend + frontend)
 
 ## Architecture
 
@@ -169,7 +169,7 @@ Both presigned endpoints accept an optional `expiry` query parameter (seconds).
 |---|---|---|---|
 | `expiry` | `86400` (24 h) | `604800` (7 days) | Link validity period in seconds |
 
-**Download link** – returns a presigned `GET` URL that anyone can use to download the object without credentials:
+`Download link` – returns a presigned `GET` URL that anyone can use to download the object without credentials:
 
 ```
 GET /api/v1/presign/download/:bucket/*key?expiry=3600
@@ -182,7 +182,7 @@ GET /api/v1/presign/download/:bucket/*key?expiry=3600
 }
 ```
 
-**Upload link** – returns a presigned `PUT` URL that allows uploading to the specified key without credentials:
+`Upload link` – returns a presigned `PUT` URL that allows uploading to the specified key without credentials:
 
 ```
 GET /api/v1/presign/upload/:bucket/*key?expiry=3600
@@ -196,7 +196,7 @@ GET /api/v1/presign/upload/:bucket/*key?expiry=3600
 }
 ```
 
-In the web UI, **Generate Download Link** now creates a shared page that can both download the current file and upload a replacement using the same selected expiry.
+In the web UI, `Generate Download Link` now creates a shared page that can both download the current file and upload a replacement using the same selected expiry.
 
 ### Collaboration rooms
 
