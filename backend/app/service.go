@@ -64,6 +64,7 @@ type Service struct {
 	client     *storage.Client
 	store      *Store
 	httpClient *http.Client
+	hub        *collaborationHub
 }
 
 func NewService(client *storage.Client, store *Store) *Service {
@@ -73,6 +74,7 @@ func NewService(client *storage.Client, store *Store) *Service {
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
+		hub: newCollaborationHub(),
 	}
 }
 

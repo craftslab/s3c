@@ -86,11 +86,12 @@
             <el-button v-if="currentBucket && canCleanup" :icon="Brush" @click="openCleanupDrawer">Cleanup</el-button>
             <el-button v-if="currentBucket && canWebhook" :icon="Connection" @click="openWebhookDrawer">Webhooks</el-button>
             <el-button v-if="isAdmin" :icon="UserFilled" @click="openUsersDrawer">Users</el-button>
-            <el-button v-if="currentBucket && canUpload" type="primary" :icon="UploadFilled" @click="showUploadDialog = true">Upload</el-button>
-            <el-button v-if="currentBucket && canPresign" :icon="Share" @click="openUploadLinkDialog">Upload Link</el-button>
-            <el-button
-              v-if="currentBucket && !currentPrefix && canDelete"
-              type="danger"
+              <el-button v-if="currentBucket && canUpload" type="primary" :icon="UploadFilled" @click="showUploadDialog = true">Upload</el-button>
+              <el-button v-if="currentBucket && canPresign" :icon="Share" @click="openUploadLinkDialog">Upload Link</el-button>
+              <el-button v-if="currentBucket" :icon="ChatLineSquare" @click="openCollaborationDrawer">Collaboration</el-button>
+              <el-button
+                v-if="currentBucket && !currentPrefix && canDelete"
+                type="danger"
               :icon="Delete"
               plain
               @click="confirmDeleteBucket"
@@ -334,6 +335,74 @@
         <el-button type="primary" :loading="generatingUploadLink" @click="generateUploadLinkAction">Generate Link</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="showCreateCollaborationDialog" title="Create Collaboration Link" width="560px" @closed="resetCollaborationForm">
+      <el-form label-width="110px">
+        <el-form-item label="Title">
+          <el-input v-model="collaborationForm.title" placeholder="Design review room" />
+        </el-form-item>
+        <el-form-item label="Bucket">
+          <el-input :model-value="currentBucket" disabled />
+        </el-form-item>
+        <el-form-item label="Prefix">
+          <el-input v-model="collaborationForm.prefix" placeholder="Optional initial prefix" />
+        </el-form-item>
+        <el-form-item label="Expires at">
+          <el-date-picker
+            v-model="collaborationForm.expiresAt"
+            type="datetime"
+            value-format="YYYY-MM-DDTHH:mm:ss[Z]"
+            placeholder="Optional"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="Allowed users">
+          <el-input
+            v-model="collaborationForm.allowedUsers"
+            type="textarea"
+            :rows="5"
+            placeholder="One username per line, supports regular and temporary users"
+          />
+        </el-form-item>
+      </el-form>
+      <div v-if="createdCollaborationUrl" class="generated-link">
+        <el-input v-model="createdCollaborationUrl" readonly>
+          <template #append><el-button :icon="CopyDocument" @click="copyToClipboard(createdCollaborationUrl)">Copy</el-button></template>
+        </el-input>
+      </div>
+      <template #footer>
+        <el-button @click="showCreateCollaborationDialog = false">Close</el-button>
+        <el-button type="primary" @click="createCollaborationSessionAction">Create Link</el-button>
+      </template>
+    </el-dialog>
+
+    <el-drawer v-model="showCollaborationDrawer" title="Collaboration Links" size="48%">
+      <div class="drawer-actions">
+        <el-button :icon="Refresh" @click="refreshCollaborationSessions">Refresh</el-button>
+        <el-button type="primary" :icon="Plus" @click="openCreateCollaborationDialog">Create Link</el-button>
+      </div>
+      <div class="collaboration-session-list">
+        <div v-for="item in collaborationSessions" :key="item.token" class="collaboration-session-item">
+          <div class="collaboration-session-copy">
+            <strong>{{ item.title }}</strong>
+            <span>{{ item.bucket }}<span v-if="item.prefix"> / {{ item.prefix }}</span></span>
+            <span>{{ item.creator }} · {{ item.status }}</span>
+            <span v-if="item.expiresAt">Expires {{ formatDate(item.expiresAt) }}</span>
+          </div>
+          <div class="collaboration-session-actions">
+            <el-button size="small" @click="openCollaborationSession(item)">Open</el-button>
+            <el-button size="small" :icon="CopyDocument" @click="copyToClipboard(collaborationSessionUrl(item))">Copy</el-button>
+            <el-button v-if="item.canManage && item.status === 'active'" size="small" type="warning" plain @click="closeCollaborationSessionAction(item)">
+              Close
+            </el-button>
+            <el-button v-if="item.canManage" size="small" type="danger" plain @click="deleteCollaborationSessionAction(item)">
+              Delete
+            </el-button>
+          </div>
+        </div>
+        <el-empty v-if="!collaborationSessions.length" description="No collaboration links yet" :image-size="64" />
+      </div>
+    </el-drawer>
 
     <el-drawer v-model="showTaskDrawer" title="Tasks" size="50%">
       <div class="drawer-actions"><el-button :icon="Refresh" @click="refreshTasks">Refresh</el-button></div>
@@ -581,7 +650,8 @@ import {
   FolderOpened,
   Edit,
   Refresh,
-  UserFilled
+  UserFilled,
+  ChatLineSquare
 } from '@element-plus/icons-vue'
 import {
   listBuckets,
@@ -615,7 +685,11 @@ import {
   listUsers,
   createTemporaryUser,
   updateUser,
-  deleteUserAccount
+  deleteUserAccount,
+  listCollaborationSessions,
+  createCollaborationSession,
+  closeCollaborationSession,
+  deleteCollaborationSession
 } from '../api'
 import { permissionOptions, refreshCurrentUser, useAuth } from '../auth'
 
@@ -661,6 +735,16 @@ const uploadLinkKey = ref('')
 const uploadLinkExpiry = ref(86400)
 const uploadPageUrl = ref('')
 const generatingUploadLink = ref(false)
+const showCollaborationDrawer = ref(false)
+const showCreateCollaborationDialog = ref(false)
+const collaborationSessions = ref([])
+const createdCollaborationUrl = ref('')
+const collaborationForm = ref({
+  title: '',
+  prefix: '',
+  expiresAt: '',
+  allowedUsers: ''
+})
 
 const showTaskDrawer = ref(false)
 const tasks = ref([])
@@ -1362,6 +1446,96 @@ async function generateUploadLinkAction() {
 
 function resetUploadLink() {
   uploadPageUrl.value = ''
+}
+
+function openCollaborationDrawer() {
+  showCollaborationDrawer.value = true
+  resetCollaborationForm()
+  refreshCollaborationSessions()
+}
+
+function openCreateCollaborationDialog() {
+  resetCollaborationForm()
+  showCreateCollaborationDialog.value = true
+}
+
+function resetCollaborationForm() {
+  createdCollaborationUrl.value = ''
+  collaborationForm.value = {
+    title: currentBucket.value ? `${currentBucket.value} collaboration` : '',
+    prefix: currentPrefix.value,
+    expiresAt: '',
+    allowedUsers: ''
+  }
+}
+
+async function refreshCollaborationSessions() {
+  try {
+    const { data } = await listCollaborationSessions()
+    collaborationSessions.value = (data || []).filter((item) => !currentBucket.value || item.bucket === currentBucket.value)
+  } catch (error) {
+    ElMessage.error('Failed to load collaboration links: ' + (error.response?.data?.error || error.message))
+  }
+}
+
+async function createCollaborationSessionAction() {
+  if (!currentBucket.value) return ElMessage.warning('Select a bucket first')
+  if (!collaborationForm.value.title.trim()) return ElMessage.warning('Title is required')
+  try {
+    const { data } = await createCollaborationSession({
+      title: collaborationForm.value.title,
+      bucket: currentBucket.value,
+      prefix: collaborationForm.value.prefix,
+      expiresAt: collaborationForm.value.expiresAt || '',
+      allowedUsers: parseUsernameList(collaborationForm.value.allowedUsers)
+    })
+    createdCollaborationUrl.value = collaborationSessionUrl(data)
+    ElMessage.success('Collaboration link created')
+    await refreshCollaborationSessions()
+  } catch (error) {
+    ElMessage.error('Failed to create collaboration link: ' + (error.response?.data?.error || error.message))
+  }
+}
+
+function openCollaborationSession(item) {
+  router.push({ name: 'collaboration', params: { token: item.token } })
+}
+
+function collaborationSessionUrl(item) {
+  return `${window.location.origin}/collaboration/${item.token}`
+}
+
+async function closeCollaborationSessionAction(item) {
+  try {
+    await ElMessageBox.confirm(`Close collaboration link "${item.title}"?`, 'Close Collaboration Link', { type: 'warning' })
+    await closeCollaborationSession(item.token)
+    ElMessage.success('Collaboration link closed')
+    await refreshCollaborationSessions()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('Failed to close collaboration link: ' + (error.response?.data?.error || error.message))
+    }
+  }
+}
+
+async function deleteCollaborationSessionAction(item) {
+  try {
+    await ElMessageBox.confirm(`Delete collaboration link "${item.title}"?`, 'Delete Collaboration Link', { type: 'warning' })
+    await deleteCollaborationSession(item.token)
+    ElMessage.success('Collaboration link deleted')
+    await refreshCollaborationSessions()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('Failed to delete collaboration link: ' + (error.response?.data?.error || error.message))
+    }
+  }
+}
+
+function parseUsernameList(value) {
+  return value
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
 }
 
 function openTaskDrawer() {
@@ -2094,6 +2268,39 @@ function formatDate(value) {
 
 .generated-link {
   margin-top: 16px;
+}
+
+.collaboration-session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.collaboration-session-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid rgba(69, 54, 42, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 252, 245, 0.78);
+}
+
+.collaboration-session-copy,
+.collaboration-session-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.collaboration-session-copy span {
+  color: #6f6256;
+  font-size: 13px;
+}
+
+.collaboration-session-actions {
+  align-items: flex-end;
 }
 
 .generated-credentials {

@@ -114,3 +114,44 @@ export const generateUploadLink = (bucket, key, expirySeconds = 86400) =>
   api.get(`/presign/upload/${encodeURIComponent(bucket)}/${encodeURIComponent(key)}`, {
     params: { expiry: expirySeconds }
   })
+
+export const listCollaborationSessions = () => api.get('/collaboration/sessions')
+
+export const createCollaborationSession = (payload) => api.post('/collaboration/sessions', payload)
+
+export const getCollaborationSession = (token) => api.get(`/collaboration/sessions/${encodeURIComponent(token)}`)
+
+export const updateCollaborationSession = (token, payload) =>
+  api.put(`/collaboration/sessions/${encodeURIComponent(token)}`, payload)
+
+export const closeCollaborationSession = (token) =>
+  api.post(`/collaboration/sessions/${encodeURIComponent(token)}/close`)
+
+export const deleteCollaborationSession = (token) =>
+  api.delete(`/collaboration/sessions/${encodeURIComponent(token)}`)
+
+export const createCollaborationMessage = (token, payload) =>
+  api.post(`/collaboration/sessions/${encodeURIComponent(token)}/messages`, payload)
+
+export const createCollaborationAttachment = (token, file) => {
+  const form = new FormData()
+  form.append('file', file)
+  return api.post(`/collaboration/sessions/${encodeURIComponent(token)}/attachments`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+}
+
+export const deleteCollaborationAttachment = (token, attachmentId) =>
+  api.delete(`/collaboration/sessions/${encodeURIComponent(token)}/attachments/${encodeURIComponent(attachmentId)}`)
+
+export const createCollaborationSharedFile = (token, payload) =>
+  api.post(`/collaboration/sessions/${encodeURIComponent(token)}/files`, payload)
+
+export const deleteCollaborationSharedFile = (token, fileId) =>
+  api.delete(`/collaboration/sessions/${encodeURIComponent(token)}/files/${encodeURIComponent(fileId)}`)
+
+export const createCollaborationStreamToken = (token) =>
+  api.post(`/collaboration/sessions/${encodeURIComponent(token)}/stream-token`)
+
+export const publishCollaborationSignal = (token, payload) =>
+  api.post(`/collaboration/sessions/${encodeURIComponent(token)}/signal`, payload)

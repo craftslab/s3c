@@ -70,13 +70,14 @@ func (s *Store) saveLocked() error {
 
 func cloneState(in State) State {
 	out := State{
-		Tasks:      cloneTasks(in.Tasks),
-		History:    cloneHistory(in.History),
-		Policies:   append([]CleanupPolicy(nil), in.Policies...),
-		Webhooks:   cloneWebhooks(in.Webhooks),
-		Deliveries: cloneDeliveries(in.Deliveries),
-		Users:      cloneUsers(in.Users),
-		Sessions:   append([]Session(nil), in.Sessions...),
+		Tasks:                 cloneTasks(in.Tasks),
+		History:               cloneHistory(in.History),
+		Policies:              append([]CleanupPolicy(nil), in.Policies...),
+		Webhooks:              cloneWebhooks(in.Webhooks),
+		Deliveries:            cloneDeliveries(in.Deliveries),
+		Users:                 cloneUsers(in.Users),
+		Sessions:              append([]Session(nil), in.Sessions...),
+		CollaborationSessions: cloneCollaborationSessions(in.CollaborationSessions),
 	}
 	return out
 }
@@ -139,6 +140,21 @@ func cloneUsers(in []User) []User {
 	for i, user := range in {
 		out[i] = user
 		out[i].Permissions = clonePermissions(user.Permissions)
+	}
+	return out
+}
+
+func cloneCollaborationSessions(in []CollaborationSession) []CollaborationSession {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]CollaborationSession, len(in))
+	for i, session := range in {
+		out[i] = session
+		out[i].AllowedUsers = append([]string(nil), session.AllowedUsers...)
+		out[i].Messages = append([]CollaborationMessage(nil), session.Messages...)
+		out[i].Attachments = append([]CollaborationAttachment(nil), session.Attachments...)
+		out[i].SharedFiles = append([]CollaborationFileRef(nil), session.SharedFiles...)
 	}
 	return out
 }
