@@ -136,11 +136,7 @@ func (h *Handler) CreateTemporaryUser(c *gin.Context) {
 	}
 	user, password, err := h.service.CreateTemporaryUser(expiresAt, req.Permissions)
 	if err != nil {
-		status := http.StatusBadRequest
-		if errors.Is(err, app.ErrInvalidUserExpiry) {
-			status = http.StatusBadRequest
-		}
-		c.JSON(status, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{

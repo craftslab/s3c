@@ -259,7 +259,7 @@ func (s *Service) ListUsers() []User {
 			return users[i].Builtin
 		}
 		if users[i].Temporary != users[j].Temporary {
-			return users[i].Temporary
+			return !users[i].Temporary
 		}
 		return users[i].Username < users[j].Username
 	})
