@@ -3,6 +3,10 @@
     <!-- Standalone pages (e.g. /upload) render without the app shell -->
     <router-view v-if="isStandalone" />
 
+    <div v-else-if="!authState.ready" class="app-loading">
+      <el-card class="loading-card" shadow="never">Loading workspace…</el-card>
+    </div>
+
     <div v-else class="app-shell">
       <header class="app-header">
         <div class="brand-lockup">
@@ -18,6 +22,11 @@
         <div class="brand-meta">
           <p>Browse buckets, move files, and share uploads from one quiet control surface.</p>
           <p>Keep bucket browsing, transfers, and upload sharing organized in one focused workspace.</p>
+          <div v-if="currentUser" class="user-meta">
+            <el-tag effect="plain">{{ currentUser.username }}</el-tag>
+            <el-tag :type="currentUser.role === 'admin' ? 'danger' : 'info'">{{ currentUser.role }}</el-tag>
+            <el-button size="small" @click="handleSignOut">Sign out</el-button>
+          </div>
         </div>
       </header>
       <main class="app-main">
@@ -28,12 +37,26 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Files } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { initializeAuth, signOutSession, useAuth } from './auth'
 
 const route = useRoute()
+const router = useRouter()
+const { state: authState, currentUser } = useAuth()
 const isStandalone = computed(() => !!route.meta?.standalone)
+
+onMounted(() => {
+  void initializeAuth()
+})
+
+async function handleSignOut() {
+  await signOutSession()
+  ElMessage.success('Signed out')
+  await router.replace({ name: 'auth' })
+}
 </script>
 
 <style>
@@ -152,6 +175,27 @@ body,
 
 .app-main {
   padding: 0;
+}
+
+.app-loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loading-card {
+  border-radius: 999px;
+  padding: 8px 18px;
+}
+
+.user-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .el-button {

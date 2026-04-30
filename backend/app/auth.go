@@ -13,18 +13,18 @@ import (
 )
 
 var (
-	ErrInvalidCredentials   = errors.New("invalid username or password")
-	ErrUnauthorized         = errors.New("authentication required")
-	ErrForbidden            = errors.New("permission denied")
-	ErrUserExists           = errors.New("user already exists")
-	ErrUserNotFound         = errors.New("user not found")
-	ErrBuiltinAdminLocked   = errors.New("builtin admin cannot be deleted or downgraded")
-	ErrLastAdminRequired    = errors.New("at least one admin must remain")
-	ErrInvalidRole          = errors.New("invalid role")
-	ErrInvalidUsername      = errors.New("username must be 3-64 characters")
-	ErrInvalidPassword      = errors.New("password must be 4-128 characters")
-	defaultSessionLifetime  = 7 * 24 * time.Hour
-	defaultUserPermissions  = []Permission{PermissionUpload, PermissionDownload, PermissionSearch, PermissionPresign}
+	ErrInvalidCredentials  = errors.New("invalid username or password")
+	ErrUnauthorized        = errors.New("authentication required")
+	ErrForbidden           = errors.New("permission denied")
+	ErrUserExists          = errors.New("user already exists")
+	ErrUserNotFound        = errors.New("user not found")
+	ErrBuiltinAdminLocked  = errors.New("builtin admin cannot be deleted or downgraded")
+	ErrLastAdminRequired   = errors.New("at least one admin must remain")
+	ErrInvalidRole         = errors.New("invalid role")
+	ErrInvalidUsername     = errors.New("username must be 3-64 characters")
+	ErrInvalidPassword     = errors.New("password must be 4-128 characters")
+	defaultSessionLifetime = 7 * 24 * time.Hour
+	defaultUserPermissions = []Permission{PermissionUpload, PermissionDownload, PermissionSearch, PermissionPresign}
 )
 
 func (u User) IsAdmin() bool {

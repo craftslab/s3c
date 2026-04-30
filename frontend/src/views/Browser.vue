@@ -7,7 +7,15 @@
       </div>
       <div class="sidebar-header">
         <span class="sidebar-title">Buckets</span>
-        <el-button circle type="primary" :icon="Plus" size="small" title="Create bucket" @click="openCreateBucket" />
+        <el-button
+          v-if="canCreate"
+          circle
+          type="primary"
+          :icon="Plus"
+          size="small"
+          title="Create bucket"
+          @click="openCreateBucket"
+        />
       </div>
       <el-scrollbar class="sidebar-scroll">
         <ul class="bucket-list">
@@ -72,15 +80,16 @@
           </el-breadcrumb>
 
           <div class="toolbar-actions">
-            <el-button v-if="currentBucket" :icon="Search" @click="searchVisible = !searchVisible">Search</el-button>
+            <el-button v-if="currentBucket && canSearch" :icon="Search" @click="searchVisible = !searchVisible">Search</el-button>
             <el-button v-if="currentBucket" :icon="Clock" @click="openHistoryDrawer">History</el-button>
             <el-button v-if="currentBucket" :icon="Finished" @click="openTaskDrawer">Tasks</el-button>
-            <el-button v-if="currentBucket" :icon="Brush" @click="openCleanupDrawer">Cleanup</el-button>
-            <el-button v-if="currentBucket" :icon="Connection" @click="openWebhookDrawer">Webhooks</el-button>
-            <el-button v-if="currentBucket" type="primary" :icon="UploadFilled" @click="showUploadDialog = true">Upload</el-button>
-            <el-button v-if="currentBucket" :icon="Share" @click="openUploadLinkDialog">Upload Link</el-button>
+            <el-button v-if="currentBucket && canCleanup" :icon="Brush" @click="openCleanupDrawer">Cleanup</el-button>
+            <el-button v-if="currentBucket && canWebhook" :icon="Connection" @click="openWebhookDrawer">Webhooks</el-button>
+            <el-button v-if="isAdmin" :icon="UserFilled" @click="openUsersDrawer">Users</el-button>
+            <el-button v-if="currentBucket && canUpload" type="primary" :icon="UploadFilled" @click="showUploadDialog = true">Upload</el-button>
+            <el-button v-if="currentBucket && canPresign" :icon="Share" @click="openUploadLinkDialog">Upload Link</el-button>
             <el-button
-              v-if="currentBucket && !currentPrefix"
+              v-if="currentBucket && !currentPrefix && canDelete"
               type="danger"
               :icon="Delete"
               plain
@@ -89,7 +98,7 @@
           </div>
         </div>
 
-        <div v-if="currentBucket && searchVisible" class="search-panel">
+        <div v-if="currentBucket && searchVisible && canSearch" class="search-panel">
           <el-form :inline="true" class="search-form">
             <el-form-item label="Name">
               <el-input v-model="searchForm.name" placeholder="contains..." clearable />
@@ -117,13 +126,13 @@
           </el-form>
         </div>
 
-        <div v-if="selectedRows.length" class="batch-toolbar">
+        <div v-if="selectedRows.length && hasBatchActions" class="batch-toolbar">
           <span>{{ selectedRows.length }} selected</span>
           <div class="batch-toolbar-actions">
-            <el-button size="small" :icon="Download" @click="downloadSelected">Download Zip</el-button>
-            <el-button size="small" :icon="FolderOpened" @click="openMoveDialog">Move</el-button>
-            <el-button size="small" :icon="Edit" @click="openRenameDialog">Rename</el-button>
-            <el-button size="small" type="danger" :icon="Delete" plain @click="confirmBatchDelete">Delete</el-button>
+            <el-button v-if="canDownload" size="small" :icon="Download" @click="downloadSelected">Download Zip</el-button>
+            <el-button v-if="canMove" size="small" :icon="FolderOpened" @click="openMoveDialog">Move</el-button>
+            <el-button v-if="canRename" size="small" :icon="Edit" @click="openRenameDialog">Rename</el-button>
+            <el-button v-if="canDelete" size="small" type="danger" :icon="Delete" plain @click="confirmBatchDelete">Delete</el-button>
           </div>
         </div>
 
@@ -162,13 +171,19 @@
             </el-table-column>
             <el-table-column label="Actions" width="270" fixed="right">
               <template #default="{ row }">
-                <el-button v-if="!row.isDir" type="primary" :icon="Download" size="small" @click.stop="downloadFile(row)">
+                <el-button
+                  v-if="!row.isDir && canDownload"
+                  type="primary"
+                  :icon="Download"
+                  size="small"
+                  @click.stop="downloadFile(row)"
+                >
                   Download
                 </el-button>
-                <el-button v-if="!row.isDir" :icon="Share" size="small" @click.stop="openDownloadLinkDialog(row)">
+                <el-button v-if="!row.isDir && canPresign" :icon="Share" size="small" @click.stop="openDownloadLinkDialog(row)">
                   Copy Link
                 </el-button>
-                <el-button type="danger" :icon="Delete" size="small" plain @click.stop="confirmDeleteObject(row)">
+                <el-button v-if="canDelete" type="danger" :icon="Delete" size="small" plain @click.stop="confirmDeleteObject(row)">
                   Delete
                 </el-button>
               </template>
@@ -418,6 +433,70 @@
         <el-table-column prop="error" label="Error" min-width="180" show-overflow-tooltip />
       </el-table>
     </el-drawer>
+
+    <el-drawer v-model="showUsersDrawer" title="Users" size="60%">
+      <div class="drawer-actions"><el-button :icon="Refresh" @click="refreshUsers">Refresh</el-button></div>
+      <el-table :data="users" size="small">
+        <el-table-column prop="username" label="Username" min-width="160" />
+        <el-table-column label="Role" width="120">
+          <template #default="{ row }">
+            <el-tag :type="row.role === 'admin' ? 'danger' : 'info'">{{ row.role }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="Permissions" min-width="280">
+          <template #default="{ row }">
+            <div class="permission-tags">
+              <el-tag v-for="permission in (row.permissions || [])" :key="permission" size="small" effect="plain">
+                {{ permissionLabel(permission) }}
+              </el-tag>
+              <span v-if="!row.permissions?.length && row.role !== 'admin'" class="small-text">No extra permissions</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="Actions" width="180">
+          <template #default="{ row }">
+            <el-button size="small" @click="openEditUserDialog(row)">Edit</el-button>
+            <el-button
+              size="small"
+              type="danger"
+              plain
+              :disabled="row.builtin || row.username === currentUser?.username"
+              @click="confirmDeleteUser(row)"
+            >
+              Delete
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-drawer>
+
+    <el-dialog v-model="showEditUserDialog" title="Edit User" width="560px">
+      <el-form v-if="editableUser" label-width="100px">
+        <el-form-item label="Username">
+          <span class="link-meta">{{ editableUser.username }}</span>
+        </el-form-item>
+        <el-form-item label="Role">
+          <el-select v-model="editableUser.role" style="width:100%" :disabled="editableUser.builtin">
+            <el-option label="Admin" value="admin" />
+            <el-option label="User" value="user" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="Permissions">
+          <div class="user-edit-permissions">
+            <div v-if="editableUser.role === 'admin'" class="small-text">Admins always have every permission.</div>
+            <el-checkbox-group v-else v-model="editableUser.permissions">
+              <el-checkbox v-for="permission in permissionOptions" :key="permission.value" :label="permission.value">
+                {{ permission.label }}
+              </el-checkbox>
+            </el-checkbox-group>
+          </div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showEditUserDialog = false">Cancel</el-button>
+        <el-button type="primary" @click="saveUserAction">Save</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -442,7 +521,8 @@ import {
   Connection,
   FolderOpened,
   Edit,
-  Refresh
+  Refresh,
+  UserFilled
 } from '@element-plus/icons-vue'
 import {
   listBuckets,
@@ -450,7 +530,7 @@ import {
   deleteBucket,
   listObjects,
   searchObjects,
-  downloadUrl,
+  downloadObject,
   deleteObject,
   batchDelete,
   batchMove,
@@ -472,11 +552,16 @@ import {
   getResumableUploadStatus,
   uploadResumablePart,
   completeResumableUpload,
-  abortResumableUpload
+  abortResumableUpload,
+  listUsers,
+  updateUser,
+  deleteUserAccount
 } from '../api'
+import { permissionOptions, refreshCurrentUser, useAuth } from '../auth'
 
 const route = useRoute()
 const router = useRouter()
+const { currentUser, isAdmin, hasPermission } = useAuth()
 
 const buckets = ref([])
 const objects = ref([])
@@ -539,6 +624,10 @@ const cleanupForm = ref({
 const showWebhookDrawer = ref(false)
 const webhooks = ref([])
 const deliveries = ref([])
+const showUsersDrawer = ref(false)
+const users = ref([])
+const showEditUserDialog = ref(false)
+const editableUser = ref(null)
 const webhookEvents = [
   'object.uploaded',
   'object.deleted',
@@ -594,6 +683,17 @@ const workspaceDescription = computed(() => workspaceContent.value.description)
 const visibleFolderCount = computed(() => objects.value.filter((item) => item.isDir).length)
 const visibleFileCount = computed(() => objects.value.filter((item) => !item.isDir).length)
 const visibleObjectBytes = computed(() => objects.value.reduce((sum, item) => sum + (item.isDir ? 0 : item.size || 0), 0))
+const canCreate = computed(() => hasPermission('create'))
+const canUpload = computed(() => hasPermission('upload'))
+const canDownload = computed(() => hasPermission('download'))
+const canDelete = computed(() => hasPermission('delete'))
+const canMove = computed(() => hasPermission('move'))
+const canRename = computed(() => hasPermission('rename'))
+const canSearch = computed(() => hasPermission('search'))
+const canCleanup = computed(() => hasPermission('cleanup'))
+const canWebhook = computed(() => hasPermission('webhook'))
+const canPresign = computed(() => hasPermission('presign'))
+const hasBatchActions = computed(() => canDownload.value || canMove.value || canRename.value || canDelete.value)
 
 const RESUMABLE_PART_SIZE = 8 * 1024 * 1024
 const RESUMABLE_UPLOAD_STORAGE_KEY = 'kipup-resumable-upload-sessions-v1'
@@ -637,7 +737,9 @@ async function fetchObjects() {
   selectedRows.value = []
   try {
     const params = buildSearchParams()
-    const request = searchActive.value ? searchObjects(currentBucket.value, params) : listObjects(currentBucket.value, currentPrefix.value)
+    const request = searchActive.value && canSearch.value
+      ? searchObjects(currentBucket.value, params)
+      : listObjects(currentBucket.value, currentPrefix.value)
     const { data } = await request
     objects.value = data || []
   } catch (error) {
@@ -661,6 +763,7 @@ function buildSearchParams() {
 }
 
 function applySearch() {
+  if (!canSearch.value) return
   searchActive.value = true
   fetchObjects()
 }
@@ -724,13 +827,15 @@ async function confirmDeleteBucket() {
   }
 }
 
-function downloadFile(row) {
-  const a = document.createElement('a')
-  a.href = downloadUrl(currentBucket.value, row.key)
-  a.download = row.name
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
+async function downloadFile(row) {
+  if (!ensurePermission('download', 'download files')) return
+  try {
+    const { data } = await downloadObject(currentBucket.value, row.key)
+    downloadBlob(data, row.name)
+    await refreshHistory()
+  } catch (error) {
+    ElMessage.error('Download failed: ' + (error.response?.data?.error || error.message))
+  }
 }
 
 async function confirmDeleteObject(row) {
@@ -813,6 +918,7 @@ function resetUpload() {
 }
 
 async function startUpload() {
+  if (!ensurePermission('upload', 'upload files')) return
   if (!uploadFiles.value.length) return
   const pendingItems = uploadFiles.value.filter((item) => item.status !== 'done')
   if (!pendingItems.length) return
@@ -1057,18 +1163,11 @@ function selectedKeys() {
 }
 
 async function downloadSelected() {
+  if (!ensurePermission('download', 'download files')) return
   if (!selectedRows.value.length) return
   try {
     const { data } = await batchDownload(currentBucket.value, selectedKeys())
-    const blob = new Blob([data], { type: 'application/zip' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${currentBucket.value}-batch.zip`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    window.URL.revokeObjectURL(url)
+    downloadBlob(data, `${currentBucket.value}-batch.zip`, 'application/zip')
     await refreshHistory()
   } catch (error) {
     ElMessage.error('Batch download failed: ' + (error.response?.data?.error || error.message))
@@ -1081,6 +1180,7 @@ function openMoveDialog() {
 }
 
 async function submitBatchMove() {
+  if (!ensurePermission('move', 'move objects')) return
   const prefix = normalizePrefix(moveTargetPrefix.value)
   const items = selectedRows.value.map((row) => ({
     sourceKey: row.key,
@@ -1102,6 +1202,7 @@ function openRenameDialog() {
 }
 
 async function submitBatchRename() {
+  if (!ensurePermission('rename', 'rename objects')) return
   try {
     await batchRename(currentBucket.value, renameItems.value, createTaskId('rename'))
     showRenameDialog.value = false
@@ -1113,6 +1214,7 @@ async function submitBatchRename() {
 }
 
 async function confirmBatchDelete() {
+  if (!ensurePermission('delete', 'delete objects')) return
   try {
     await ElMessageBox.confirm(`Delete ${selectedRows.value.length} selected item(s)?`, 'Batch Delete', { type: 'warning' })
     await batchDelete(currentBucket.value, selectedKeys(), createTaskId('delete'))
@@ -1131,6 +1233,7 @@ function openDownloadLinkDialog(row) {
 }
 
 async function generateDownloadLinkAction() {
+  if (!ensurePermission('presign', 'generate shared links')) return
   if (!downloadLinkTarget.value) return
   generatingDownloadLink.value = true
   try {
@@ -1173,6 +1276,7 @@ function openUploadLinkDialog() {
 }
 
 async function generateUploadLinkAction() {
+  if (!ensurePermission('presign', 'generate shared links')) return
   const key = uploadLinkKey.value.trim()
   if (!key) return ElMessage.warning('Destination key is required')
   generatingUploadLink.value = true
@@ -1203,14 +1307,21 @@ function openHistoryDrawer() {
 }
 
 function openCleanupDrawer() {
+  if (!ensurePermission('cleanup', 'manage cleanup policies')) return
   cleanupForm.value.bucket = currentBucket.value
   showCleanupDrawer.value = true
   refreshCleanupPolicies()
 }
 
 function openWebhookDrawer() {
+  if (!ensurePermission('webhook', 'manage webhooks')) return
   showWebhookDrawer.value = true
   refreshWebhooks()
+}
+
+function openUsersDrawer() {
+  showUsersDrawer.value = true
+  refreshUsers()
 }
 
 async function refreshTasks() {
@@ -1232,6 +1343,10 @@ async function refreshHistory() {
 }
 
 async function refreshCleanupPolicies() {
+  if (!canCleanup.value) {
+    cleanupPolicies.value = []
+    return
+  }
   try {
     const { data } = await listCleanupPolicies()
     cleanupPolicies.value = (data || []).filter((policy) => !currentBucket.value || policy.bucket === currentBucket.value)
@@ -1241,6 +1356,7 @@ async function refreshCleanupPolicies() {
 }
 
 async function createCleanupPolicyAction() {
+  if (!ensurePermission('cleanup', 'manage cleanup policies')) return
   if (!cleanupForm.value.name || !cleanupForm.value.bucket) {
     return ElMessage.warning('Policy name and bucket are required')
   }
@@ -1265,6 +1381,7 @@ async function createCleanupPolicyAction() {
 }
 
 async function runCleanupPolicyAction(policy) {
+  if (!ensurePermission('cleanup', 'manage cleanup policies')) return
   try {
     const { data } = await runCleanupPolicy(policy.id)
     ElMessage.success(`Cleanup removed ${(data.deleted || []).length} object(s)`) 
@@ -1275,6 +1392,7 @@ async function runCleanupPolicyAction(policy) {
 }
 
 async function deleteCleanupPolicyAction(policy) {
+  if (!ensurePermission('cleanup', 'manage cleanup policies')) return
   try {
     await deleteCleanupPolicy(policy.id)
     ElMessage.success('Policy deleted')
@@ -1285,6 +1403,11 @@ async function deleteCleanupPolicyAction(policy) {
 }
 
 async function refreshWebhooks() {
+  if (!canWebhook.value) {
+    webhooks.value = []
+    deliveries.value = []
+    return
+  }
   try {
     const [{ data: hooks }, { data: deliveryItems }] = await Promise.all([listWebhooks(), listWebhookDeliveries()])
     webhooks.value = hooks || []
@@ -1295,6 +1418,7 @@ async function refreshWebhooks() {
 }
 
 async function createWebhookAction() {
+  if (!ensurePermission('webhook', 'manage webhooks')) return
   if (!webhookForm.value.name || !webhookForm.value.url) return ElMessage.warning('Webhook name and URL are required')
   try {
     await createWebhook({ ...webhookForm.value })
@@ -1307,6 +1431,7 @@ async function createWebhookAction() {
 }
 
 async function deleteWebhookAction(webhook) {
+  if (!ensurePermission('webhook', 'manage webhooks')) return
   try {
     await deleteWebhook(webhook.id)
     ElMessage.success('Webhook deleted')
@@ -1328,6 +1453,55 @@ function startPolling() {
   }, 5000)
 }
 
+async function refreshUsers() {
+  if (!isAdmin.value) {
+    users.value = []
+    return
+  }
+  try {
+    const { data } = await listUsers()
+    users.value = data || []
+  } catch (error) {
+    ElMessage.error('Failed to load users: ' + (error.response?.data?.error || error.message))
+  }
+}
+
+function openEditUserDialog(user) {
+  editableUser.value = {
+    username: user.username,
+    role: user.role,
+    permissions: [...(user.permissions || [])],
+    builtin: Boolean(user.builtin)
+  }
+  showEditUserDialog.value = true
+}
+
+async function saveUserAction() {
+  if (!editableUser.value) return
+  try {
+    await updateUser(editableUser.value.username, {
+      role: editableUser.value.role,
+      permissions: editableUser.value.role === 'admin' ? [] : editableUser.value.permissions
+    })
+    showEditUserDialog.value = false
+    ElMessage.success('User updated')
+    await Promise.all([refreshUsers(), refreshCurrentUser()])
+  } catch (error) {
+    ElMessage.error('Failed to update user: ' + (error.response?.data?.error || error.message))
+  }
+}
+
+async function confirmDeleteUser(user) {
+  try {
+    await ElMessageBox.confirm(`Delete user "${user.username}"?`, 'Delete User', { type: 'warning' })
+    await deleteUserAccount(user.username)
+    ElMessage.success('User deleted')
+    await refreshUsers()
+  } catch (error) {
+    if (error !== 'cancel') ElMessage.error('Failed to delete user: ' + (error.response?.data?.error || error.message))
+  }
+}
+
 function stopPolling() {
   if (poller) {
     window.clearInterval(poller)
@@ -1338,6 +1512,28 @@ function stopPolling() {
 function taskProgress(task) {
   if (!task?.totalItems) return task?.status === 'completed' ? 100 : 0
   return Math.min(100, Math.round((task.completedItems / task.totalItems) * 100))
+}
+
+function ensurePermission(permission, actionLabel) {
+  if (hasPermission(permission)) return true
+  ElMessage.warning(`You do not have permission to ${actionLabel}.`)
+  return false
+}
+
+function permissionLabel(permission) {
+  return permissionOptions.find((item) => item.value === permission)?.label || permission
+}
+
+function downloadBlob(data, filename, type = 'application/octet-stream') {
+  const blob = new Blob([data], { type })
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  window.URL.revokeObjectURL(url)
 }
 
 async function copyToClipboard(text) {
@@ -1800,6 +1996,13 @@ function formatDate(value) {
 .drawer-subtitle {
   margin: 20px 0 12px;
   color: #2b241d;
+}
+
+.permission-tags,
+.user-edit-permissions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .rename-item {

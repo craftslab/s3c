@@ -33,6 +33,8 @@ services:
       # Public base URL of the Kipup web entry used to build shareable proxy links.
       # Set this in your .env, e.g. http://47.88.100.1:3000 or https://kipup.example.com
       PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-}"
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-admin}"
       S3_ACCESS_KEY: "${S3_ACCESS_KEY:-minioadmin}"
       S3_SECRET_KEY: "${S3_SECRET_KEY:-minioadmin}"
       S3_USE_SSL: "${S3_USE_SSL:-false}"

@@ -55,6 +55,8 @@ open http://localhost:3000
 
 Default MinIO credentials: `minioadmin` / `minioadmin`
 
+Default Kipup admin credentials: `admin` / `admin`
+
 ## Local Development
 
 ### Backend
@@ -87,6 +89,8 @@ npm run dev
 | Variable | Default | Description |
 |---|---|---|
 | `LISTEN_ADDR` | `:8080` | Backend listen address |
+| `ADMIN_USERNAME` | `admin` | Bootstrap admin username used for sign-in |
+| `ADMIN_PASSWORD` | `admin` | Bootstrap admin password used for sign-in |
 | `S3_ENDPOINT` | `localhost:9000` | S3/MinIO endpoint (host:port) |
 | `S3_PUBLIC_URL` | *(empty)* | Public base URL used in returned presigned links (e.g. `https://s3.example.com`) |
 | `PUBLIC_BASE_URL` | *(empty)* | Public base URL of the Kipup web entry used to build shareable proxy download links (e.g. `https://kipup.example.com`) |
@@ -99,8 +103,17 @@ npm run dev
 
 ## API Reference
 
+All `/api/v1/*` routes except `/api/v1/auth/sign-up` and `/api/v1/auth/sign-in` require a `Bearer` token. Sign-up creates a normal user account with default permissions for `upload`, `download`, `search`, and `presign`. Admin users can change user roles and permissions in the UI.
+
 | Method | Path | Description |
 |---|---|---|
+| POST | `/api/v1/auth/sign-up` | Create a normal user account `{"username":"…","password":"…"}` |
+| POST | `/api/v1/auth/sign-in` | Sign in and receive a bearer token |
+| GET | `/api/v1/auth/me` | Get current signed-in user |
+| POST | `/api/v1/auth/sign-out` | Sign out current session |
+| GET | `/api/v1/users` | List users (admin only) |
+| PUT | `/api/v1/users/:username` | Update a user's role and permissions (admin only) |
+| DELETE | `/api/v1/users/:username` | Delete a user (admin only) |
 | GET | `/api/v1/buckets` | List buckets |
 | POST | `/api/v1/buckets` | Create bucket `{"name":"…","region":"…"}` |
 | DELETE | `/api/v1/buckets/:bucket` | Delete bucket |
@@ -126,6 +139,12 @@ npm run dev
 | GET | `/api/v1/webhook-deliveries` | List recent webhook deliveries |
 | GET | `/api/v1/presign/download/:bucket/*key` | Generate presigned download URL |
 | GET | `/api/v1/presign/upload/:bucket/*key` | Generate presigned upload URL |
+
+### Role and permission model
+
+- `admin` users have full access to every operation.
+- `user` accounts can be granted these permissions individually: `upload`, `download`, `create`, `delete`, `move`, `rename`, `search`, `cleanup`, `webhook`, `presign`.
+- Shared `/upload` and `/download` proxy routes continue to work with presigned links and do not require sign-in.
 
 ### Presigned URL endpoints
 
