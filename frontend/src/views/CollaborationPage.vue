@@ -13,6 +13,9 @@
             <el-tag type="info">{{ session.status }}</el-tag>
             <el-tag v-if="session.expiresAt" type="warning">Expires {{ formatDate(session.expiresAt) }}</el-tag>
             <el-tag>{{ onlineUsers.length }} online</el-tag>
+            <el-badge :value="unreadCount" :hidden="!unreadCount">
+              <el-tag type="danger">Unread</el-tag>
+            </el-badge>
           </div>
         </div>
         <div class="hero-actions">
@@ -23,6 +26,17 @@
           </el-input>
           <div class="hero-action-row">
             <el-button type="primary" @click="refreshSession">Refresh</el-button>
+            <el-button plain @click="markLatestRead" :disabled="!messages.length">Mark read</el-button>
+            <el-dropdown>
+              <el-button>Export transcript</el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item @click="exportTranscript('json')">JSON</el-dropdown-item>
+                  <el-dropdown-item @click="exportTranscript('txt')">TXT</el-dropdown-item>
+                  <el-dropdown-item @click="exportTranscript('pdf')">PDF</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
             <el-button v-if="canManage" @click="saveSessionSettings">Save access list</el-button>
             <el-button v-if="canManage && session.status === 'active'" type="warning" plain @click="closeSessionAction">Close session</el-button>
           </div>
@@ -73,27 +87,106 @@
         <main class="main-panel">
           <el-card class="chat-card" shadow="never">
             <template #header>
-              <div class="card-header"><span>Chat</span><span class="caption">Text + voice input</span></div>
+              <div class="card-header">
+                <span>Chat</span>
+                <div class="chat-header-meta">
+                  <span class="caption">Markdown · reply · reactions</span>
+                  <el-badge :value="unreadCount" :hidden="!unreadCount">
+                    <span class="caption">Unread</span>
+                  </el-badge>
+                </div>
+              </div>
             </template>
-            <el-scrollbar class="chat-scroll">
+
+            <div class="quick-tools">
+              <div class="chip-row">
+                <el-button v-for="preset in quickReplies" :key="preset.label" size="small" plain @click="sendQuickReply(preset)">
+                  {{ preset.label }}
+                </el-button>
+              </div>
+              <div class="chip-row mention-row">
+                <span class="caption">Mention</span>
+                <el-button v-for="user in mentionableUsers" :key="user" size="small" text @click="insertMention(user)">
+                  @{{ user }}
+                </el-button>
+              </div>
+            </div>
+
+            <el-scrollbar ref="chatScrollRef" class="chat-scroll">
               <div v-if="messages.length" class="message-list">
-                <article v-for="message in messages" :key="message.id" class="message-item">
-                  <header>
-                    <strong>{{ message.author }}</strong>
-                    <span>{{ formatDate(message.createdAt) }}</span>
-                  </header>
-                  <p>{{ message.content }}</p>
-                </article>
+                <template v-for="(message, index) in messages" :key="message.id">
+                  <div v-if="showUnreadMarker(index)" class="unread-marker">
+                    <span>{{ unreadCount }} unread message<span v-if="unreadCount !== 1">s</span></span>
+                    <el-button size="small" text @click="markLatestRead">Mark read</el-button>
+                  </div>
+                  <article :class="['message-row', isOwnMessage(message) ? 'is-own' : 'is-other']">
+                    <div :class="['message-bubble', message.status === 'recalled' ? 'is-recalled' : '']">
+                      <header class="message-header">
+                        <strong>{{ message.author }}</strong>
+                        <div class="message-meta">
+                          <span>{{ formatDate(message.createdAt) }}</span>
+                          <el-tag v-if="message.type === 'quick_reply'" size="small" type="success">Quick reply</el-tag>
+                          <el-tag v-if="message.status === 'recalled'" size="small" type="warning">Recalled</el-tag>
+                        </div>
+                      </header>
+
+                      <div v-if="message.replyTo" class="reply-preview">
+                        <strong>{{ message.replyTo.author }}</strong>
+                        <span>{{ message.replyTo.summary }}</span>
+                      </div>
+
+                      <div v-if="message.quickReply" class="quick-reply-pill">{{ message.quickReply }}</div>
+                      <div v-if="message.status === 'recalled'" class="message-placeholder">This message was recalled.</div>
+                      <div v-else class="message-markdown" v-html="renderMessage(message)" />
+
+                      <div v-if="message.reactions?.length" class="reaction-row">
+                        <button
+                          v-for="reaction in message.reactions"
+                          :key="`${message.id}-${reaction.emoji}`"
+                          class="reaction-chip"
+                          type="button"
+                          @click="reactToMessage(message, reaction.emoji)"
+                        >
+                          <span>{{ reaction.emoji }}</span>
+                          <span>{{ reaction.users?.length || 0 }}</span>
+                        </button>
+                      </div>
+
+                      <div class="message-actions">
+                        <el-button size="small" text @click="setReplyTarget(message)">Reply</el-button>
+                        <el-button v-for="emoji in reactionChoices" :key="`${message.id}-${emoji}`" size="small" text @click="reactToMessage(message, emoji)">
+                          {{ emoji }}
+                        </el-button>
+                        <el-button v-if="isOwnMessage(message) && message.status !== 'recalled'" size="small" text @click="recallMessage(message)">Recall</el-button>
+                        <el-button v-if="isOwnMessage(message)" size="small" text type="danger" @click="removeMessage(message)">Delete</el-button>
+                      </div>
+                    </div>
+                  </article>
+                </template>
               </div>
               <el-empty v-else description="No messages yet" :image-size="72" />
             </el-scrollbar>
+
             <div class="composer">
-              <el-input v-model="messageDraft" type="textarea" :rows="4" placeholder="Type a message or use voice input" />
+              <div v-if="replyTarget" class="replying-banner">
+                <div>
+                  <strong>Replying to {{ replyTarget.author }}</strong>
+                  <p>{{ replyTarget.summary || replyTarget.content }}</p>
+                </div>
+                <el-button text @click="replyTarget = null">Clear</el-button>
+              </div>
+              <el-input v-model="messageDraft" type="textarea" :rows="5" placeholder="Type Markdown, mention teammates with @name, or send a quick reply" />
               <div class="composer-actions">
-                <el-button :type="listening ? 'danger' : 'default'" @click="toggleVoiceInput">
-                  {{ listening ? 'Stop voice input' : 'Voice input' }}
-                </el-button>
-                <el-button type="primary" :disabled="!messageDraft.trim()" @click="sendMessage">Send</el-button>
+                <div class="emoji-row">
+                  <button v-for="emoji in composerEmojis" :key="emoji" class="emoji-chip" type="button" @click="appendEmoji(emoji)">{{ emoji }}</button>
+                </div>
+                <div class="composer-buttons">
+                  <el-button :type="listening ? 'danger' : 'default'" @click="toggleVoiceInput">
+                    {{ listening ? 'Stop voice input' : 'Voice input' }}
+                  </el-button>
+                  <el-button plain @click="markLatestRead" :disabled="!messages.length">Mark read</el-button>
+                  <el-button type="primary" :disabled="!canSendMessage" @click="sendMessage">Send</el-button>
+                </div>
               </div>
             </div>
           </el-card>
@@ -163,26 +256,38 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   AUTH_TOKEN_STORAGE_KEY,
+  closeCollaborationSession,
   createCollaborationAttachment,
   createCollaborationMessage,
   createCollaborationSharedFile,
   createCollaborationStreamToken,
   deleteCollaborationAttachment,
-  deleteCollaborationSession,
+  deleteCollaborationMessage,
   deleteCollaborationSharedFile,
+  exportCollaborationTranscript,
   getCollaborationSession,
   listBuckets,
   listObjects,
+  markCollaborationRead,
   publishCollaborationSignal,
-  updateCollaborationSession,
-  closeCollaborationSession
+  recallCollaborationMessage,
+  toggleCollaborationReaction,
+  updateCollaborationSession
 } from '../api'
 import { useAuth } from '../auth'
+
+const quickReplies = [
+  { label: 'Acknowledged', content: 'Acknowledged.', quickReply: '✅ Acknowledged' },
+  { label: 'On my way', content: 'On my way.', quickReply: '🚀 On my way' },
+  { label: 'Need info', content: 'I need more details to proceed.', quickReply: '❓ Need info' }
+]
+const reactionChoices = ['👍', '🎯', '🔥', '✅']
+const composerEmojis = ['😀', '👍', '🎉', '🤝', '🚀']
 
 const route = useRoute()
 const router = useRouter()
@@ -196,8 +301,12 @@ const attachments = ref([])
 const sharedFiles = ref([])
 const allowedUsersDraft = ref('')
 const messageDraft = ref('')
+const replyTarget = ref(null)
 const listening = ref(false)
+const unreadCount = ref(0)
+const lastReadMessageId = ref('')
 const attachmentInputRef = ref(null)
+const chatScrollRef = ref(null)
 const buckets = ref([])
 const browserObjects = ref([])
 const selectedBucket = ref('')
@@ -213,9 +322,15 @@ const peerConnections = new Map()
 const token = computed(() => route.params.token)
 const canManage = computed(() => Boolean(session.value?.canManage))
 const collaborationUrl = computed(() => `${window.location.origin}/collaboration/${token.value}`)
-const allowedUsersWithCreator = computed(() => {
-  if (!session.value) return []
-  return [session.value.creator, ...(session.value.allowedUsers || [])]
+const currentUsername = computed(() => session.value?.currentUsername || currentUser.value?.username || '')
+const allowedUsersWithCreator = computed(() => (session.value ? [session.value.creator, ...(session.value.allowedUsers || [])] : []))
+const mentionableUsers = computed(() => session.value?.mentionableUsers || allowedUsersWithCreator.value)
+const canSendMessage = computed(() => Boolean(messageDraft.value.trim() || replyTarget.value))
+const firstUnreadIndex = computed(() => {
+  if (!messages.value.length || unreadCount.value <= 0) return -1
+  if (!lastReadMessageId.value) return Math.max(messages.value.length - unreadCount.value, 0)
+  const index = messages.value.findIndex((item) => item.id === lastReadMessageId.value)
+  return index < 0 ? Math.max(messages.value.length - unreadCount.value, 0) : Math.min(index + 1, messages.value.length - 1)
 })
 
 onMounted(async () => {
@@ -240,15 +355,11 @@ async function refreshSession() {
       selectedBucket.value = data.bucket || ''
       selectedPrefix.value = data.prefix || ''
     }
-    if (selectedBucket.value) {
-      await loadBrowserObjects()
-    }
+    if (selectedBucket.value) await loadBrowserObjects()
+    await nextTick()
+    scrollChatToBottom()
   } catch (error) {
-    if (error.response?.status === 410) {
-      ElMessage.error(error.response?.data?.error || 'Collaboration session is unavailable')
-    } else {
-      ElMessage.error(error.response?.data?.error || error.message)
-    }
+    ElMessage.error(error.response?.data?.error || error.message)
     session.value = null
   } finally {
     loading.value = false
@@ -262,6 +373,8 @@ function applySession(data) {
   attachments.value = data.attachments || []
   sharedFiles.value = data.sharedFiles || []
   allowedUsersDraft.value = (data.allowedUsers || []).join('\n')
+  unreadCount.value = data.unreadCount || 0
+  lastReadMessageId.value = data.lastReadMessageId || ''
 }
 
 async function connectStream() {
@@ -273,17 +386,14 @@ async function connectStream() {
     await handleRealtimeEvent(payload)
   })
   eventSource.onerror = () => {
-    if (eventSource?.readyState === EventSource.CLOSED) {
-      disconnectStream()
-    }
+    if (eventSource?.readyState === EventSource.CLOSED) disconnectStream()
   }
 }
 
 function disconnectStream() {
-  if (eventSource) {
-    eventSource.close()
-    eventSource = null
-  }
+  if (!eventSource) return
+  eventSource.close()
+  eventSource = null
 }
 
 async function handleRealtimeEvent(event) {
@@ -302,7 +412,25 @@ async function handleRealtimeEvent(event) {
       await router.replace({ name: 'browser' })
       break
     case 'message.created':
-      messages.value = [...messages.value, payload]
+      messages.value = upsertMessage(payload)
+      if (!isOwnAuthor(payload.author)) unreadCount.value += 1
+      await nextTick()
+      scrollChatToBottom()
+      break
+    case 'message.recalled':
+    case 'reaction.changed':
+      messages.value = upsertMessage(payload)
+      break
+    case 'message.deleted':
+      if (payload.username === currentUsername.value) {
+        messages.value = messages.value.filter((item) => item.id !== payload.messageId)
+      }
+      break
+    case 'read.updated':
+      if (payload.username === currentUsername.value) {
+        unreadCount.value = payload.unreadCount || 0
+        lastReadMessageId.value = payload.lastReadMessageId || latestMessageId()
+      }
       break
     case 'attachment.created':
       attachments.value = [payload, ...attachments.value.filter((item) => item.id !== payload.id)]
@@ -324,6 +452,24 @@ async function handleRealtimeEvent(event) {
   }
 }
 
+function upsertMessage(message) {
+  return [...messages.value.filter((item) => item.id !== message.id), message].sort(
+    (left, right) => new Date(left.createdAt) - new Date(right.createdAt)
+  )
+}
+
+function isOwnAuthor(author) {
+  return currentUsername.value && author === currentUsername.value
+}
+
+function isOwnMessage(message) {
+  return isOwnAuthor(message.author)
+}
+
+function showUnreadMarker(index) {
+  return unreadCount.value > 0 && index === firstUnreadIndex.value
+}
+
 async function saveSessionSettings() {
   if (!session.value) return
   try {
@@ -333,7 +479,7 @@ async function saveSessionSettings() {
       allowedUsers: parseAllowedUsers(allowedUsersDraft.value),
       expiresAt: session.value.expiresAt || ''
     })
-    applySession({ ...data, onlineUsers: onlineUsers.value })
+    applySession({ ...data, onlineUsers: onlineUsers.value, unreadCount: unreadCount.value, lastReadMessageId: lastReadMessageId.value })
     ElMessage.success('Access list updated')
   } catch (error) {
     ElMessage.error(error.response?.data?.error || error.message)
@@ -347,21 +493,154 @@ async function closeSessionAction() {
     applySession({ ...data, onlineUsers: onlineUsers.value })
     ElMessage.success('Session closed')
   } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(error.response?.data?.error || error.message)
-    }
+    if (error !== 'cancel') ElMessage.error(error.response?.data?.error || error.message)
   }
 }
 
 async function sendMessage() {
   const content = messageDraft.value.trim()
-  if (!content) return
+  if (!content && !replyTarget.value) return
   try {
-    await createCollaborationMessage(token.value, { content })
+    await createCollaborationMessage(token.value, {
+      content,
+      replyToId: replyTarget.value?.id || '',
+      mentionedUsers: extractMentionedUsers(content),
+      type: 'markdown'
+    })
     messageDraft.value = ''
+    replyTarget.value = null
   } catch (error) {
     ElMessage.error(error.response?.data?.error || error.message)
   }
+}
+
+async function sendQuickReply(preset) {
+  try {
+    await createCollaborationMessage(token.value, {
+      content: preset.content,
+      quickReply: preset.quickReply,
+      replyToId: replyTarget.value?.id || '',
+      mentionedUsers: extractMentionedUsers(preset.content),
+      type: 'quick_reply'
+    })
+    replyTarget.value = null
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || error.message)
+  }
+}
+
+async function reactToMessage(message, emoji) {
+  try {
+    await toggleCollaborationReaction(token.value, message.id, { emoji })
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || error.message)
+  }
+}
+
+async function recallMessage(message) {
+  try {
+    await recallCollaborationMessage(token.value, message.id)
+    ElMessage.success('Message recalled')
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || error.message)
+  }
+}
+
+async function removeMessage(message) {
+  try {
+    await ElMessageBox.confirm('Delete this message only from your view?', 'Delete Message', { type: 'warning' })
+    await deleteCollaborationMessage(token.value, message.id)
+    ElMessage.success('Message deleted')
+  } catch (error) {
+    if (error !== 'cancel') ElMessage.error(error.response?.data?.error || error.message)
+  }
+}
+
+async function markLatestRead() {
+  if (!messages.value.length) return
+  try {
+    const { data } = await markCollaborationRead(token.value, { messageId: latestMessageId() })
+    unreadCount.value = data.unreadCount || 0
+    lastReadMessageId.value = data.lastReadMessageId || latestMessageId()
+    ElMessage.success('Unread state updated')
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || error.message)
+  }
+}
+
+function latestMessageId() {
+  return messages.value[messages.value.length - 1]?.id || ''
+}
+
+async function exportTranscript(format) {
+  try {
+    const { data, headers } = await exportCollaborationTranscript(token.value, format)
+    const objectUrl = window.URL.createObjectURL(data)
+    const link = document.createElement('a')
+    const contentDisposition = headers['content-disposition'] || ''
+    const match = /filename="?([^";]+)"?/i.exec(contentDisposition)
+    link.href = objectUrl
+    link.download = match?.[1] || `collaboration-transcript.${format}`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(objectUrl)
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || error.message)
+  }
+}
+
+function setReplyTarget(message) {
+  replyTarget.value = message
+}
+
+function insertMention(username) {
+  messageDraft.value = `${messageDraft.value}${messageDraft.value.endsWith(' ') || !messageDraft.value ? '' : ' '}@${username} `
+}
+
+function appendEmoji(emoji) {
+  messageDraft.value = `${messageDraft.value}${emoji}`
+}
+
+function extractMentionedUsers(content) {
+  return [...new Set(Array.from(content.matchAll(/(^|\s)@([A-Za-z0-9._-]{3,64})/g)).map((item) => item[2]))]
+}
+
+function renderMessage(message) {
+  const source = message.content || ''
+  const sections = source.split(/\n{2,}/).map((item) => item.trim()).filter(Boolean)
+  return sections.map(renderBlock).join('')
+}
+
+function renderBlock(block) {
+  if (block.startsWith('>')) {
+    const quote = block.split('\n').map((line) => line.replace(/^>\s?/, '')).join('<br>')
+    return `<blockquote>${renderInline(quote)}</blockquote>`
+  }
+  if (/^[-*]\s+/m.test(block)) {
+    const items = block
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => `<li>${renderInline(line.replace(/^[-*]\s+/, ''))}</li>`)
+      .join('')
+    return `<ul>${items}</ul>`
+  }
+  const heading = block.match(/^(#{1,3})\s+(.+)$/)
+  if (heading) {
+    const level = Math.min(heading[1].length + 1, 4)
+    return `<h${level}>${renderInline(heading[2])}</h${level}>`
+  }
+  return `<p>${renderInline(block.replace(/\n/g, '<br>'))}</p>`
+}
+
+function renderInline(value) {
+  return value
+    .replace(/\[(.+?)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/~~(.+?)~~/g, '<del>$1</del>')
+    .replace(/`(.+?)`/g, '<code>$1</code>')
+    .replace(/(^|\s)@([A-Za-z0-9._-]{3,64})/g, '$1<span class="mention">@$2</span>')
 }
 
 function toggleVoiceInput() {
@@ -370,10 +649,7 @@ function toggleVoiceInput() {
     ElMessage.warning('Voice input is not supported in this browser')
     return
   }
-  if (listening.value) {
-    stopVoiceRecognition()
-    return
-  }
+  if (listening.value) return stopVoiceRecognition()
   speechRecognition = new Recognition()
   speechRecognition.lang = normalizeRecognitionLanguage(navigator.language)
   speechRecognition.interimResults = true
@@ -417,13 +693,11 @@ async function onAttachmentChange(event) {
 
 async function removeAttachment(attachment) {
   try {
-    await ElMessageBox.confirm(`Delete attachment \"${attachment.name}\"?`, 'Delete Attachment', { type: 'warning' })
+    await ElMessageBox.confirm(`Delete attachment "${attachment.name}"?`, 'Delete Attachment', { type: 'warning' })
     await deleteCollaborationAttachment(token.value, attachment.id)
     ElMessage.success('Attachment deleted')
   } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(error.response?.data?.error || error.message)
-    }
+    if (error !== 'cancel') ElMessage.error(error.response?.data?.error || error.message)
   }
 }
 
@@ -506,6 +780,11 @@ async function downloadAuthorized(url, filename) {
   }
 }
 
+function scrollChatToBottom() {
+  const wrap = chatScrollRef.value?.wrapRef
+  if (wrap) wrap.scrollTop = wrap.scrollHeight
+}
+
 async function startVideo() {
   try {
     await ensureLocalStream()
@@ -516,13 +795,9 @@ async function startVideo() {
 }
 
 function stopVideo() {
-  for (const username of peerConnections.keys()) {
-    closePeer(username)
-  }
+  for (const username of peerConnections.keys()) closePeer(username)
   if (localStream.value) {
-    for (const track of localStream.value.getTracks()) {
-      track.stop()
-    }
+    for (const track of localStream.value.getTracks()) track.stop()
     localStream.value = null
   }
   remoteStreams.value = []
@@ -538,9 +813,7 @@ async function ensureLocalStream() {
 }
 
 function attachLocalVideo() {
-  if (localVideoRef.value) {
-    localVideoRef.value.srcObject = localStream.value || null
-  }
+  if (localVideoRef.value) localVideoRef.value.srcObject = localStream.value || null
 }
 
 async function maybeInitiateOffers() {
@@ -565,29 +838,19 @@ async function createOffer(username) {
 }
 
 async function ensurePeerConnection(username) {
-  if (peerConnections.has(username)) {
-    return peerConnections.get(username)
-  }
-  const connection = new RTCPeerConnection({
-    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-  })
+  if (peerConnections.has(username)) return peerConnections.get(username)
+  const connection = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] })
   if (localStream.value) {
-    for (const track of localStream.value.getTracks()) {
-      connection.addTrack(track, localStream.value)
-    }
+    for (const track of localStream.value.getTracks()) connection.addTrack(track, localStream.value)
   }
   connection.onicecandidate = (event) => {
-    if (event.candidate) {
-      publishSignal({ to: username, candidate: event.candidate })
-    }
+    if (event.candidate) publishSignal({ to: username, candidate: event.candidate })
   }
   connection.ontrack = (event) => {
     setRemoteStream(username, event.streams[0])
   }
   connection.onconnectionstatechange = () => {
-    if (['disconnected', 'failed', 'closed'].includes(connection.connectionState)) {
-      closePeer(username)
-    }
+    if (['disconnected', 'failed', 'closed'].includes(connection.connectionState)) closePeer(username)
   }
   peerConnections.set(username, connection)
   return connection
@@ -599,11 +862,8 @@ function setRemoteStream(username, stream) {
 
 function bindRemoteVideo(element, username) {
   if (!element) return
-  element.dataset.remoteVideo = username
   const remote = remoteStreams.value.find((item) => item.username === username)
-  if (remote) {
-    element.srcObject = remote.stream
-  }
+  if (remote) element.srcObject = remote.stream
 }
 
 function closePeer(username) {
@@ -630,9 +890,7 @@ async function handleSignal(payload) {
     if (payload.description.type === 'offer') {
       await ensureLocalStream()
       if (!connection.getSenders().length && localStream.value) {
-        for (const track of localStream.value.getTracks()) {
-          connection.addTrack(track, localStream.value)
-        }
+        for (const track of localStream.value.getTracks()) connection.addTrack(track, localStream.value)
       }
       await connection.setRemoteDescription(payload.description)
       const answer = await connection.createAnswer()
@@ -669,10 +927,7 @@ async function copyToClipboard(value) {
 }
 
 function parseAllowedUsers(value) {
-  return value
-    .split(/[,\n]/)
-    .map((item) => item.trim())
-    .filter(Boolean)
+  return value.split(/[,\n]/).map((item) => item.trim()).filter(Boolean)
 }
 
 function formatDate(value) {
@@ -683,15 +938,7 @@ function normalizeRecognitionLanguage(value) {
   const language = typeof value === 'string' ? value.trim() : ''
   if (!language) return 'en-US'
   if (/^[a-z]{2}$/i.test(language)) {
-    const defaults = {
-      en: 'en-US',
-      zh: 'zh-CN',
-      ja: 'ja-JP',
-      ko: 'ko-KR',
-      fr: 'fr-FR',
-      de: 'de-DE',
-      es: 'es-ES'
-    }
+    const defaults = { en: 'en-US', zh: 'zh-CN', ja: 'ja-JP', ko: 'ko-KR', fr: 'fr-FR', de: 'de-DE', es: 'es-ES' }
     return defaults[language.toLowerCase()] || 'en-US'
   }
   if (/^[a-z]{2}-[a-z]{2}$/i.test(language)) {
@@ -703,133 +950,42 @@ function normalizeRecognitionLanguage(value) {
 </script>
 
 <style scoped>
-.collaboration-page {
-  padding: 28px 0 40px;
-}
-
-.collaboration-shell {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.collaboration-hero,
-.collaboration-grid {
-  display: grid;
-  gap: 20px;
-}
-
-.collaboration-hero {
-  grid-template-columns: 1.4fr 1fr;
-  align-items: start;
-}
-
-.collaboration-grid {
-  grid-template-columns: 280px minmax(0, 1fr) 320px;
-}
-
-.eyebrow,
-.subtitle,
-.caption,
-.file-item p {
-  margin: 0;
-  color: var(--kip-text-muted);
-}
-
-h1 {
-  margin: 8px 0 12px;
-  font-size: 36px;
-  line-height: 1.1;
-}
-
-.hero-meta,
-.hero-action-row,
-.video-actions,
-.composer-actions,
-.file-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.hero-actions,
-.side-panel,
-.main-panel,
-.chat-card,
-.s3-browser,
-.composer,
-.file-list,
-.member-list,
-.remote-videos {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-.chat-scroll {
-  height: 420px;
-}
-
-.message-item {
-  padding: 14px;
-  border: 1px solid var(--kip-border);
-  border-radius: 18px;
-  background: rgba(255, 252, 245, 0.76);
-}
-
-.message-item header,
-.member-item,
-.file-item,
-.browser-item {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-}
-
-.message-item p {
-  margin: 10px 0 0;
-  white-space: pre-wrap;
-}
-
-.video-tile {
-  width: 100%;
-  min-height: 160px;
-  border-radius: 18px;
-  background: #120e0a;
-  object-fit: cover;
-}
-
-.browser-scroll {
-  max-height: 180px;
-}
-
-.browser-name {
-  cursor: pointer;
-}
-
-.file-item,
-.member-item,
-.browser-item {
-  padding: 10px 12px;
-  border: 1px solid var(--kip-border);
-  border-radius: 16px;
-}
-
+.collaboration-page { padding: 28px 0 40px; }
+.collaboration-shell { display: flex; flex-direction: column; gap: 20px; }
+.collaboration-hero, .collaboration-grid { display: grid; gap: 20px; }
+.collaboration-hero { grid-template-columns: 1.4fr 1fr; align-items: start; }
+.collaboration-grid { grid-template-columns: 280px minmax(0, 1fr) 320px; }
+.eyebrow, .subtitle, .caption, .file-item p, .replying-banner p, .remote-video-item p { margin: 0; color: var(--kip-text-muted); }
+h1 { margin: 8px 0 12px; font-size: 36px; line-height: 1.1; }
+.hero-meta, .hero-action-row, .video-actions, .composer-actions, .file-actions, .chat-header-meta, .message-actions, .message-meta, .reaction-row, .chip-row, .composer-buttons, .emoji-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.hero-actions, .side-panel, .main-panel, .chat-card, .s3-browser, .composer, .file-list, .member-list, .remote-videos, .quick-tools { display: flex; flex-direction: column; gap: 14px; }
+.card-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.chat-scroll { height: 520px; }
+.message-list { display: flex; flex-direction: column; gap: 14px; }
+.message-row { display: flex; }
+.message-row.is-own { justify-content: flex-end; }
+.message-bubble { max-width: min(78%, 720px); padding: 14px 16px; border-radius: 24px; border: 1px solid var(--kip-border); background: rgba(255, 252, 245, 0.88); box-shadow: 0 18px 40px rgba(59, 43, 31, 0.06); }
+.message-row.is-own .message-bubble { background: rgba(32, 25, 18, 0.92); color: #f9f3ea; }
+.message-row.is-own .message-bubble :deep(a), .message-row.is-own .message-bubble :deep(code), .message-row.is-own .message-bubble :deep(blockquote), .message-row.is-own .message-bubble :deep(.mention) { color: inherit; }
+.message-bubble.is-recalled { opacity: 0.82; }
+.message-header, .member-item, .file-item, .browser-item { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.reply-preview, .replying-banner, .unread-marker { border: 1px solid var(--kip-border); background: rgba(237, 226, 210, 0.55); border-radius: 18px; padding: 10px 12px; }
+.quick-reply-pill { display: inline-flex; align-items: center; padding: 6px 10px; border-radius: 999px; background: rgba(237, 226, 210, 0.85); color: var(--kip-text); font-size: 13px; font-weight: 600; }
+.message-placeholder { font-style: italic; color: inherit; }
+.message-markdown :deep(p), .message-markdown :deep(ul), .message-markdown :deep(blockquote), .message-markdown :deep(h2), .message-markdown :deep(h3), .message-markdown :deep(h4) { margin: 10px 0 0; }
+.message-markdown :deep(ul) { padding-left: 20px; }
+.message-markdown :deep(code) { padding: 2px 6px; border-radius: 8px; background: rgba(32, 25, 18, 0.08); }
+.message-markdown :deep(blockquote) { margin-left: 0; padding-left: 12px; border-left: 3px solid rgba(32, 25, 18, 0.28); }
+.message-markdown :deep(.mention) { font-weight: 700; color: #a84300; }
+.reaction-chip, .emoji-chip { border: 1px solid var(--kip-border); background: rgba(255, 252, 245, 0.82); border-radius: 999px; padding: 6px 10px; cursor: pointer; }
+.message-row.is-own .reaction-chip { background: rgba(255, 255, 255, 0.14); color: #f9f3ea; }
+.browser-scroll { max-height: 180px; }
+.browser-name { cursor: pointer; }
+.file-item, .member-item, .browser-item, .unread-marker { padding: 10px 12px; border: 1px solid var(--kip-border); border-radius: 16px; }
+.upload-inline { display: flex; }
 @media (max-width: 1280px) {
-  .collaboration-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .collaboration-hero {
-    grid-template-columns: 1fr;
-  }
+  .collaboration-grid { grid-template-columns: 1fr; }
+  .collaboration-hero { grid-template-columns: 1fr; }
+  .message-bubble { max-width: 100%; }
 }
 </style>

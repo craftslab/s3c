@@ -133,6 +133,24 @@ export const deleteCollaborationSession = (token) =>
 export const createCollaborationMessage = (token, payload) =>
   api.post(`/collaboration/sessions/${encodeURIComponent(token)}/messages`, payload)
 
+export const markCollaborationRead = (token, payload = {}) =>
+  api.post(`/collaboration/sessions/${encodeURIComponent(token)}/read`, payload)
+
+export const toggleCollaborationReaction = (token, messageId, payload) =>
+  api.post(`/collaboration/sessions/${encodeURIComponent(token)}/messages/${encodeURIComponent(messageId)}/reactions`, payload)
+
+export const recallCollaborationMessage = (token, messageId) =>
+  api.post(`/collaboration/sessions/${encodeURIComponent(token)}/messages/${encodeURIComponent(messageId)}/recall`)
+
+export const deleteCollaborationMessage = (token, messageId) =>
+  api.delete(`/collaboration/sessions/${encodeURIComponent(token)}/messages/${encodeURIComponent(messageId)}`)
+
+export const exportCollaborationTranscript = (token, format) =>
+  api.get(`/collaboration/sessions/${encodeURIComponent(token)}/export`, {
+    params: { format },
+    responseType: 'blob'
+  })
+
 export const createCollaborationAttachment = (token, file) => {
   const form = new FormData()
   form.append('file', file)
