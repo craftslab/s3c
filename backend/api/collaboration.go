@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"sort"
 	"strings"
 	"time"
 
@@ -22,7 +23,19 @@ type collaborationSessionRequest struct {
 }
 
 type collaborationMessageRequest struct {
-	Content string `json:"content" binding:"required"`
+	Content        string   `json:"content"`
+	ReplyToID      string   `json:"replyToId"`
+	QuickReply     string   `json:"quickReply"`
+	MentionedUsers []string `json:"mentionedUsers"`
+	Type           string   `json:"type"`
+}
+
+type collaborationReactionRequest struct {
+	Emoji string `json:"emoji" binding:"required"`
+}
+
+type collaborationReadRequest struct {
+	MessageID string `json:"messageId"`
 }
 
 type collaborationSharedFileRequest struct {
@@ -32,6 +45,33 @@ type collaborationSharedFileRequest struct {
 }
 
 type collaborationSignalRequest map[string]interface{}
+
+type mobileCollaborationRequest struct {
+	ActivationToken string `json:"activationToken" binding:"required"`
+	DeviceID        string `json:"deviceId" binding:"required"`
+}
+
+type mobileCollaborationMessageRequest struct {
+	ActivationToken string   `json:"activationToken" binding:"required"`
+	DeviceID        string   `json:"deviceId" binding:"required"`
+	Content         string   `json:"content"`
+	ReplyToID       string   `json:"replyToId"`
+	QuickReply      string   `json:"quickReply"`
+	MentionedUsers  []string `json:"mentionedUsers"`
+	Type            string   `json:"type"`
+}
+
+type mobileCollaborationReactionRequest struct {
+	ActivationToken string `json:"activationToken" binding:"required"`
+	DeviceID        string `json:"deviceId" binding:"required"`
+	Emoji           string `json:"emoji" binding:"required"`
+}
+
+type mobileCollaborationReadRequest struct {
+	ActivationToken string `json:"activationToken" binding:"required"`
+	DeviceID        string `json:"deviceId" binding:"required"`
+	MessageID       string `json:"messageId"`
+}
 
 func (h *Handler) ListCollaborationSessions(c *gin.Context) {
 	user, ok := currentUserFromContext(c)
@@ -152,12 +192,93 @@ func (h *Handler) CreateCollaborationMessage(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	message, err := h.service.AddCollaborationMessage(c.Param("token"), user, req.Content)
+	message, err := h.service.AddCollaborationMessage(c.Param("token"), user, collaborationMessageInput(req))
 	if err != nil {
 		writeCollaborationError(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, message)
+}
+
+func (h *Handler) MarkCollaborationRead(c *gin.Context) {
+	user, ok := currentUserFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": app.ErrUnauthorized.Error()})
+		return
+	}
+	var req collaborationReadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	event, err := h.service.MarkCollaborationRead(c.Param("token"), user, req.MessageID)
+	if err != nil {
+		writeCollaborationError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, event)
+}
+
+func (h *Handler) ToggleCollaborationReaction(c *gin.Context) {
+	user, ok := currentUserFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": app.ErrUnauthorized.Error()})
+		return
+	}
+	var req collaborationReactionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	message, err := h.service.ToggleCollaborationReaction(c.Param("token"), user, c.Param("messageId"), req.Emoji)
+	if err != nil {
+		writeCollaborationError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, message)
+}
+
+func (h *Handler) RecallCollaborationMessage(c *gin.Context) {
+	user, ok := currentUserFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": app.ErrUnauthorized.Error()})
+		return
+	}
+	message, err := h.service.RecallCollaborationMessage(c.Param("token"), user, c.Param("messageId"))
+	if err != nil {
+		writeCollaborationError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, message)
+}
+
+func (h *Handler) DeleteCollaborationMessage(c *gin.Context) {
+	user, ok := currentUserFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": app.ErrUnauthorized.Error()})
+		return
+	}
+	event, err := h.service.DeleteCollaborationMessage(c.Param("token"), user, c.Param("messageId"))
+	if err != nil {
+		writeCollaborationError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, event)
+}
+
+func (h *Handler) ExportCollaborationTranscript(c *gin.Context) {
+	user, ok := currentUserFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": app.ErrUnauthorized.Error()})
+		return
+	}
+	filename, contentType, data, err := h.service.ExportCollaborationTranscript(c.Param("token"), user, c.DefaultQuery("format", "json"))
+	if err != nil {
+		writeCollaborationError(c, err)
+		return
+	}
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	c.Data(http.StatusOK, contentType, data)
 }
 
 func (h *Handler) CreateCollaborationAttachment(c *gin.Context) {
@@ -392,7 +513,116 @@ func (h *Handler) PublishCollaborationSignal(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{"message": "signal sent"})
 }
 
+func (h *Handler) GetMobileCollaborationSession(c *gin.Context) {
+	var req mobileCollaborationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	session, actor, err := h.service.GetMobileCollaborationSession(req.ActivationToken, req.DeviceID)
+	if err != nil {
+		writeCollaborationError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, collaborationSessionResponseWithActor(session, actor.Username, false, nil))
+}
+
+func (h *Handler) CreateMobileCollaborationMessage(c *gin.Context) {
+	var req mobileCollaborationMessageRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	message, err := h.service.AddMobileCollaborationMessage(req.ActivationToken, req.DeviceID, app.CollaborationMessageInput{
+		Content:        req.Content,
+		ReplyToID:      req.ReplyToID,
+		QuickReply:     req.QuickReply,
+		MentionedUsers: req.MentionedUsers,
+		Type:           app.CollaborationMessageType(strings.TrimSpace(req.Type)),
+	})
+	if err != nil {
+		writeCollaborationError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, message)
+}
+
+func (h *Handler) MarkMobileCollaborationRead(c *gin.Context) {
+	var req mobileCollaborationReadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	event, err := h.service.MarkMobileCollaborationRead(req.ActivationToken, req.DeviceID, req.MessageID)
+	if err != nil {
+		writeCollaborationError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, event)
+}
+
+func (h *Handler) ToggleMobileCollaborationReaction(c *gin.Context) {
+	var req mobileCollaborationReactionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	message, err := h.service.ToggleMobileCollaborationReaction(req.ActivationToken, req.DeviceID, c.Param("messageId"), req.Emoji)
+	if err != nil {
+		writeCollaborationError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, message)
+}
+
+func (h *Handler) RecallMobileCollaborationMessage(c *gin.Context) {
+	var req mobileCollaborationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	message, err := h.service.RecallMobileCollaborationMessage(req.ActivationToken, req.DeviceID, c.Param("messageId"))
+	if err != nil {
+		writeCollaborationError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, message)
+}
+
+func (h *Handler) DeleteMobileCollaborationMessage(c *gin.Context) {
+	var req mobileCollaborationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	event, err := h.service.DeleteMobileCollaborationMessage(req.ActivationToken, req.DeviceID, c.Param("messageId"))
+	if err != nil {
+		writeCollaborationError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, event)
+}
+
+func (h *Handler) ExportMobileCollaborationTranscript(c *gin.Context) {
+	filename, contentType, data, err := h.service.ExportMobileCollaborationTranscript(
+		c.Query("activationToken"),
+		c.Query("deviceId"),
+		c.DefaultQuery("format", "json"),
+	)
+	if err != nil {
+		writeCollaborationError(c, err)
+		return
+	}
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	c.Data(http.StatusOK, contentType, data)
+}
+
 func collaborationSessionResponse(session app.CollaborationSession, user app.User, onlineUsers []string) gin.H {
+	return collaborationSessionResponseWithActor(session, user.Username, user.IsAdmin() || strings.EqualFold(session.Creator, user.Username), onlineUsers)
+}
+
+func collaborationSessionResponseWithActor(session app.CollaborationSession, username string, canManage bool, onlineUsers []string) gin.H {
+	unreadCount, lastReadMessageID := collaborationUnreadState(session, username)
 	return gin.H{
 		"id":               session.ID,
 		"token":            session.Token,
@@ -405,14 +635,81 @@ func collaborationSessionResponse(session app.CollaborationSession, user app.Use
 		"allowedUsers":     session.AllowedUsers,
 		"status":           session.Status,
 		"messages":         session.Messages,
+		"readStates":       session.ReadStates,
 		"attachments":      session.Attachments,
 		"sharedFiles":      session.SharedFiles,
 		"createdAt":        session.CreatedAt,
 		"updatedAt":        session.UpdatedAt,
 		"expiresAt":        session.ExpiresAt,
 		"closedAt":         session.ClosedAt,
-		"canManage":        user.IsAdmin() || strings.EqualFold(session.Creator, user.Username),
+		"canManage":        canManage,
+		"currentUsername":  username,
+		"unreadCount":      unreadCount,
+		"lastReadMessageId": lastReadMessageID,
+		"mentionableUsers": collaborationMentionableUsers(session),
 		"onlineUsers":      onlineUsers,
+	}
+}
+
+func collaborationMentionableUsers(session app.CollaborationSession) []string {
+	seen := map[string]string{}
+	add := func(value string) {
+		key := strings.ToLower(strings.TrimSpace(value))
+		if key == "" {
+			return
+		}
+		seen[key] = value
+	}
+	add(session.Creator)
+	for _, user := range session.AllowedUsers {
+		add(user)
+	}
+	for _, message := range session.Messages {
+		add(message.Author)
+	}
+	users := make([]string, 0, len(seen))
+	for _, value := range seen {
+		users = append(users, value)
+	}
+	sort.Strings(users)
+	return users
+}
+
+func collaborationUnreadState(session app.CollaborationSession, username string) (int, string) {
+	lastRead := ""
+	for _, state := range session.ReadStates {
+		if strings.EqualFold(state.Username, username) {
+			lastRead = state.LastReadMessageID
+			break
+		}
+	}
+	count := 0
+	seenLast := lastRead == ""
+	for _, message := range session.Messages {
+		if strings.EqualFold(message.Author, username) {
+			if message.ID == lastRead {
+				seenLast = true
+			}
+			continue
+		}
+		if !seenLast {
+			count++
+		}
+		if message.ID == lastRead {
+			seenLast = true
+			count = 0
+		}
+	}
+	return count, lastRead
+}
+
+func collaborationMessageInput(req collaborationMessageRequest) app.CollaborationMessageInput {
+	return app.CollaborationMessageInput{
+		Content:        req.Content,
+		ReplyToID:      req.ReplyToID,
+		QuickReply:     req.QuickReply,
+		MentionedUsers: req.MentionedUsers,
+		Type:           app.CollaborationMessageType(strings.TrimSpace(req.Type)),
 	}
 }
 
@@ -434,11 +731,11 @@ func writeCollaborationError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, app.ErrUnauthorized):
 		status = http.StatusUnauthorized
-	case errors.Is(err, app.ErrCollaborationSessionNotFound), errors.Is(err, app.ErrCollaborationAttachmentNotFound), errors.Is(err, app.ErrCollaborationFileNotFound):
+	case errors.Is(err, app.ErrCollaborationSessionNotFound), errors.Is(err, app.ErrCollaborationAttachmentNotFound), errors.Is(err, app.ErrCollaborationFileNotFound), errors.Is(err, app.ErrCollaborationMessageNotFound):
 		status = http.StatusNotFound
-	case errors.Is(err, app.ErrInvalidCollaborationExpiry):
+	case errors.Is(err, app.ErrInvalidCollaborationExpiry), errors.Is(err, app.ErrInvalidCollaborationMention), errors.Is(err, app.ErrInvalidCollaborationReaction), errors.Is(err, app.ErrInvalidCollaborationExport):
 		status = http.StatusBadRequest
-	case errors.Is(err, app.ErrCollaborationAccessDenied), errors.Is(err, app.ErrCollaborationManageDenied):
+	case errors.Is(err, app.ErrCollaborationAccessDenied), errors.Is(err, app.ErrCollaborationManageDenied), errors.Is(err, app.ErrCollaborationMessageAuthorOnly):
 		status = http.StatusForbidden
 	case errors.Is(err, app.ErrCollaborationSessionExpired), errors.Is(err, app.ErrCollaborationSessionClosed):
 		status = http.StatusGone
