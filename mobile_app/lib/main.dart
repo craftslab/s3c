@@ -840,10 +840,15 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                                       replyToId: _replyTarget?['id']?.toString() ?? '',
                                     );
                                     _messageController.clear();
-                                    _replyTarget = null;
-                                    _mentionQuery = null;
-                                    if (!mounted) return;
-                                    setState(() {});
+                                    if (!mounted) {
+                                      _replyTarget = null;
+                                      _mentionQuery = null;
+                                      return;
+                                    }
+                                    setState(() {
+                                      _replyTarget = null;
+                                      _mentionQuery = null;
+                                    });
                                   } catch (error) {
                                     if (!mounted) return;
                                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));

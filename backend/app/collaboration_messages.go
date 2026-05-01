@@ -271,6 +271,7 @@ func (s *Service) recallCollaborationMessage(token string, actor CollaborationAc
 		updated.RecalledBy = actor.Username
 		updated.UpdatedAt = now
 		session.Messages = append(session.Messages[:messageIndex], session.Messages[messageIndex+1:]...)
+		// Remove stale last-read pointers that may still reference the recalled message.
 		pruneCollaborationReadStates(session)
 		session.UpdatedAt = now
 		return nil
