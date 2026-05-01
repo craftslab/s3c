@@ -10,6 +10,8 @@ const String _defaultApiBaseUrl = String.fromEnvironment(
   'KIPUP_API_BASE_URL',
   defaultValue: 'http://localhost:8080/api/v1',
 );
+const int _initialPollDelaySeconds = 5;
+const int _maxPollDelaySeconds = 30;
 
 void main() {
   runApp(const KipupMobileApp());
@@ -416,7 +418,7 @@ class KipupMobileController extends ChangeNotifier {
   void _scheduleNextPoll() {
     _pollTimer?.cancel();
     if (collaborationToken.isEmpty) return;
-    final delaySeconds = _pollFailures <= 0 ? 5 : min(30, 5 * (_pollFailures + 1));
+    final delaySeconds = _pollFailures <= 0 ? _initialPollDelaySeconds : min(_maxPollDelaySeconds, _initialPollDelaySeconds * (_pollFailures + 1));
     _pollTimer = Timer(Duration(seconds: delaySeconds), () {
       unawaited(_pollCollaborationSession());
     });

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"path"
-	"sort"
 	"strings"
 	"time"
 
@@ -646,33 +645,9 @@ func collaborationSessionResponseWithActor(session app.CollaborationSession, use
 		"currentUsername":  username,
 		"unreadCount":      unreadCount,
 		"lastReadMessageId": lastReadMessageID,
-		"mentionableUsers": collaborationMentionableUsers(session),
+		"mentionableUsers": app.CollaborationMentionableUsers(session),
 		"onlineUsers":      onlineUsers,
 	}
-}
-
-func collaborationMentionableUsers(session app.CollaborationSession) []string {
-	seen := map[string]string{}
-	add := func(value string) {
-		key := strings.ToLower(strings.TrimSpace(value))
-		if key == "" {
-			return
-		}
-		seen[key] = value
-	}
-	add(session.Creator)
-	for _, user := range session.AllowedUsers {
-		add(user)
-	}
-	for _, message := range session.Messages {
-		add(message.Author)
-	}
-	users := make([]string, 0, len(seen))
-	for _, value := range seen {
-		users = append(users, value)
-	}
-	sort.Strings(users)
-	return users
 }
 
 func collaborationUnreadState(session app.CollaborationSession, username string) (int, string) {

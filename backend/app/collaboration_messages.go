@@ -17,6 +17,11 @@ var (
 	deviceNamePattern    = regexp.MustCompile(`[^a-z0-9._-]+`)
 )
 
+const (
+	maxCollaborationSummaryLength       = 120
+	truncatedCollaborationSummaryLength = 117
+)
+
 func collaborationActorFromUser(user User) CollaborationActor {
 	return CollaborationActor{
 		Username: user.Username,
@@ -340,7 +345,7 @@ func (s *Service) exportCollaborationTranscript(token string, actor Collaboratio
 
 func normalizeCollaborationMentions(session CollaborationSession, username string, explicit []string, content string) ([]string, error) {
 	allowed := make(map[string]string)
-	for _, item := range collaborationMentionableUsers(session) {
+	for _, item := range CollaborationMentionableUsers(session) {
 		allowed[normalizedUsernameKey(item)] = item
 	}
 	selected := map[string]string{}
@@ -414,8 +419,8 @@ func summarizeCollaborationContent(content, quickReply string) string {
 	summary = markdownTokenPattern.ReplaceAllString(summary, "")
 	summary = strings.Join(strings.Fields(summary), " ")
 	runes := []rune(summary)
-	if len(runes) > 120 {
-		summary = string(runes[:117]) + "..."
+	if len(runes) > maxCollaborationSummaryLength {
+		summary = string(runes[:truncatedCollaborationSummaryLength]) + "..."
 	}
 	return summary
 }
@@ -430,7 +435,7 @@ func sanitizeCollaborationMarkdown(value string) string {
 	return strings.TrimSpace(html.EscapeString(value))
 }
 
-func collaborationMentionableUsers(session CollaborationSession) []string {
+func CollaborationMentionableUsers(session CollaborationSession) []string {
 	seen := map[string]string{}
 	for _, item := range append([]string{session.Creator}, session.AllowedUsers...) {
 		if key := normalizedUsernameKey(item); key != "" {
