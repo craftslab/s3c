@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -112,4 +113,69 @@ func TestMobileAppValidationFailsWhenCollaborationCloses(t *testing.T) {
 	if _, err := service.ValidateMobileAppInstallation(installation.ActivationToken, installation.DeviceID); !errors.Is(err, ErrCollaborationSessionClosed) {
 		t.Fatalf("ValidateMobileAppInstallation() error = %v, want %v", err, ErrCollaborationSessionClosed)
 	}
+}
+
+func TestMobileCollaborationMessaging(t *testing.T) {
+	service, _ := newAuthTestService(t)
+
+	creator, _ := service.SignUp("mobile-owner", "secret1")
+	session, err := service.CreateCollaborationSession(creator, "Mobile Room", "team-bucket", "", nil, ptrTime(time.Now().UTC().Add(time.Hour)))
+	if err != nil {
+		t.Fatalf("CreateCollaborationSession() error = %v", err)
+	}
+	release, err := service.CreateMobileAppRelease(creator, MobileAppReleaseInput{
+		Title:              "Kipup Mobile",
+		Version:            "2.0.0",
+		Platform:           "android",
+		Bucket:             "team-bucket",
+		ObjectKey:          "mobile/kipup-200.apk",
+		ExpiresAt:          time.Now().UTC().Add(time.Hour),
+		CollaborationToken: session.Token,
+	})
+	if err != nil {
+		t.Fatalf("CreateMobileAppRelease() error = %v", err)
+	}
+	link, _, err := service.CreateMobileAppDownloadLink(release.ID, creator, time.Now().UTC().Add(30*time.Minute))
+	if err != nil {
+		t.Fatalf("CreateMobileAppDownloadLink() error = %v", err)
+	}
+	installation, _, err := service.ActivateMobileAppInstallation(link.Token, MobileAppActivationRequest{
+		Platform:   "android",
+		DeviceID:   "device-mobile-1",
+		DeviceName: "QA Phone",
+	})
+	if err != nil {
+		t.Fatalf("ActivateMobileAppInstallation() error = %v", err)
+	}
+
+	view, actor, err := service.GetMobileCollaborationSession(installation.ActivationToken, installation.DeviceID)
+	if err != nil {
+		t.Fatalf("GetMobileCollaborationSession() error = %v", err)
+	}
+	if actor.Username == "" || view.Token != session.Token {
+		t.Fatalf("unexpected mobile collaboration context: %#v / %#v", actor, view)
+	}
+
+	created, err := service.AddMobileCollaborationMessage(installation.ActivationToken, installation.DeviceID, CollaborationMessageInput{
+		Content: "hello from mobile",
+	})
+	if err != nil {
+		t.Fatalf("AddMobileCollaborationMessage() error = %v", err)
+	}
+	if !strings.HasPrefix(created.Author, "mobile-") {
+		t.Fatalf("expected synthetic mobile author, got %q", created.Author)
+	}
+	if _, err := service.MarkMobileCollaborationRead(installation.ActivationToken, installation.DeviceID, created.ID); err != nil {
+		t.Fatalf("MarkMobileCollaborationRead() error = %v", err)
+	}
+	if _, err := service.ToggleMobileCollaborationReaction(installation.ActivationToken, installation.DeviceID, created.ID, "✅"); err != nil {
+		t.Fatalf("ToggleMobileCollaborationReaction() error = %v", err)
+	}
+	if _, _, data, err := service.ExportMobileCollaborationTranscript(installation.ActivationToken, installation.DeviceID, "txt"); err != nil || !strings.Contains(string(data), "hello from mobile") {
+		t.Fatalf("ExportMobileCollaborationTranscript() error = %v data = %q", err, string(data))
+	}
+}
+
+func ptrTime(value time.Time) *time.Time {
+	return &value
 }

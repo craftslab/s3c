@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -20,10 +21,15 @@ var (
 	ErrInvalidCollaborationTitle       = errors.New("collaboration title is required")
 	ErrInvalidCollaborationBucket      = errors.New("collaboration bucket is required")
 	ErrCollaborationMessageEmpty       = errors.New("message content is required")
+	ErrCollaborationMessageNotFound    = errors.New("collaboration message not found")
 	ErrCollaborationAttachmentNotFound = errors.New("collaboration attachment not found")
 	ErrCollaborationFileNotFound       = errors.New("collaboration shared file not found")
 	ErrCollaborationManageDenied       = errors.New("collaboration session can only be managed by the creator or an admin")
 	ErrInvalidCollaborationSignal      = errors.New("collaboration signal payload is required")
+	ErrInvalidCollaborationMention     = errors.New("mentioned user is not part of the collaboration session")
+	ErrInvalidCollaborationReaction    = errors.New("reaction emoji is required")
+	ErrInvalidCollaborationExport      = errors.New("collaboration export format must be json, txt, or pdf")
+	ErrCollaborationMessageAuthorOnly  = errors.New("only the original sender can update this message state")
 )
 
 const (
@@ -33,6 +39,15 @@ const (
 )
 
 type CollaborationSessionStatus string
+type CollaborationMessageType string
+type CollaborationMessageStatus string
+
+const (
+	CollaborationMessageTypeMarkdown   CollaborationMessageType   = "markdown"
+	CollaborationMessageTypeQuickReply CollaborationMessageType   = "quick_reply"
+	CollaborationMessageStatusSent     CollaborationMessageStatus = "sent"
+	CollaborationMessageStatusRecalled CollaborationMessageStatus = "recalled"
+)
 
 type CollaborationSession struct {
 	ID               string                     `json:"id"`
@@ -46,6 +61,7 @@ type CollaborationSession struct {
 	AllowedUsers     []string                   `json:"allowedUsers,omitempty"`
 	Status           CollaborationSessionStatus `json:"status"`
 	Messages         []CollaborationMessage     `json:"messages,omitempty"`
+	ReadStates       []CollaborationReadState   `json:"readStates,omitempty"`
 	Attachments      []CollaborationAttachment  `json:"attachments,omitempty"`
 	SharedFiles      []CollaborationFileRef     `json:"sharedFiles,omitempty"`
 	CreatedAt        time.Time                  `json:"createdAt"`
@@ -55,10 +71,60 @@ type CollaborationSession struct {
 }
 
 type CollaborationMessage struct {
+	ID             string                     `json:"id"`
+	Type           CollaborationMessageType   `json:"type"`
+	Status         CollaborationMessageStatus `json:"status"`
+	Author         string                     `json:"author"`
+	Content        string                     `json:"content"`
+	Summary        string                     `json:"summary"`
+	Mentions       []string                   `json:"mentions,omitempty"`
+	ReplyTo        *CollaborationMessageRef   `json:"replyTo,omitempty"`
+	QuickReply     string                     `json:"quickReply,omitempty"`
+	Reactions      []CollaborationReaction    `json:"reactions,omitempty"`
+	ReadBy         []CollaborationMessageRead `json:"readBy,omitempty"`
+	DeletedFor     []string                   `json:"-"`
+	CreatedAt      time.Time                  `json:"createdAt"`
+	UpdatedAt      time.Time                  `json:"updatedAt"`
+	RecalledAt     *time.Time                 `json:"recalledAt,omitempty"`
+	RecalledBy     string                     `json:"recalledBy,omitempty"`
+	ExportMetadata map[string]string          `json:"exportMetadata,omitempty"`
+}
+
+type CollaborationMessageRef struct {
 	ID        string    `json:"id"`
 	Author    string    `json:"author"`
-	Content   string    `json:"content"`
+	Summary   string    `json:"summary"`
 	CreatedAt time.Time `json:"createdAt"`
+}
+
+type CollaborationReaction struct {
+	Emoji string   `json:"emoji"`
+	Users []string `json:"users,omitempty"`
+}
+
+type CollaborationMessageRead struct {
+	Username string    `json:"username"`
+	ReadAt   time.Time `json:"readAt"`
+}
+
+type CollaborationReadState struct {
+	Username          string    `json:"username"`
+	LastReadMessageID string    `json:"lastReadMessageId,omitempty"`
+	LastReadAt        time.Time `json:"lastReadAt"`
+}
+
+type CollaborationMessageInput struct {
+	Content        string
+	ReplyToID      string
+	QuickReply     string
+	MentionedUsers []string
+	Type           CollaborationMessageType
+}
+
+type CollaborationActor struct {
+	Username        string
+	Admin           bool
+	BypassAllowList bool
 }
 
 type CollaborationAttachment struct {
@@ -86,6 +152,29 @@ type CollaborationRealtimeEvent struct {
 	Payload   interface{} `json:"payload,omitempty"`
 	CreatedAt time.Time   `json:"createdAt"`
 }
+
+type CollaborationReadEvent struct {
+	Username          string    `json:"username"`
+	LastReadMessageID string    `json:"lastReadMessageId,omitempty"`
+	UnreadCount       int       `json:"unreadCount"`
+	ReadAt            time.Time `json:"readAt"`
+}
+
+type CollaborationDeletionEvent struct {
+	MessageID string `json:"messageId"`
+	Username  string `json:"username"`
+}
+
+type CollaborationExportSnapshot struct {
+	Session     CollaborationSession  `json:"session"`
+	Messages    []CollaborationMessage `json:"messages"`
+	Attachments []CollaborationAttachment `json:"attachments"`
+	SharedFiles []CollaborationFileRef `json:"sharedFiles"`
+	ExportedAt  time.Time `json:"exportedAt"`
+	ExportedBy  string `json:"exportedBy"`
+}
+
+var mentionPattern = regexp.MustCompile(`(^|[\s\(\[\{>])@([A-Za-z0-9._-]{3,64})`)
 
 type streamAccessToken struct {
 	SessionToken string
@@ -232,12 +321,13 @@ type CollaborationSessionUpdate struct {
 func (s *Service) ListCollaborationSessions(user User) []CollaborationSession {
 	state := s.store.snapshot()
 	now := time.Now().UTC()
+	actor := collaborationActorFromUser(user)
 	sessions := make([]CollaborationSession, 0, len(state.CollaborationSessions))
 	for _, session := range state.CollaborationSessions {
-		if err := ensureCollaborationAccessible(session, user, now); err != nil {
+		if err := ensureCollaborationAccessibleActor(session, actor, now); err != nil {
 			continue
 		}
-		sessions = append(sessions, sanitizeCollaborationSession(session))
+		sessions = append(sessions, collaborationSessionView(session, actor.Username))
 	}
 	sort.Slice(sessions, func(i, j int) bool {
 		return sessions[i].UpdatedAt.After(sessions[j].UpdatedAt)
@@ -299,14 +389,15 @@ func (s *Service) CreateCollaborationSession(user User, title, bucket, prefix st
 func (s *Service) GetCollaborationSession(token string, user User) (CollaborationSession, []string, error) {
 	state := s.store.snapshot()
 	now := time.Now().UTC()
+	actor := collaborationActorFromUser(user)
 	session, err := findCollaborationSession(state.CollaborationSessions, token)
 	if err != nil {
 		return CollaborationSession{}, nil, err
 	}
-	if err := ensureCollaborationAccessible(session, user, now); err != nil {
+	if err := ensureCollaborationAccessibleActor(session, actor, now); err != nil {
 		return CollaborationSession{}, nil, err
 	}
-	return sanitizeCollaborationSession(session), s.hub.onlineUsers(session.Token), nil
+	return collaborationSessionView(session, actor.Username), s.hub.onlineUsers(session.Token), nil
 }
 
 func (s *Service) UpdateCollaborationSession(token string, user User, update CollaborationSessionUpdate) (CollaborationSession, error) {
@@ -397,35 +488,8 @@ func (s *Service) DeleteCollaborationSession(token string, user User) (Collabora
 	return deleted, nil
 }
 
-func (s *Service) AddCollaborationMessage(token string, user User, content string) (CollaborationMessage, error) {
-	content = strings.TrimSpace(content)
-	if content == "" {
-		return CollaborationMessage{}, ErrCollaborationMessageEmpty
-	}
-	now := time.Now().UTC()
-	message := CollaborationMessage{ID: newID("message"), Author: user.Username, Content: content, CreatedAt: now}
-	if err := s.store.update(func(state *State) error {
-		index, err := findCollaborationSessionIndex(state.CollaborationSessions, token)
-		if err != nil {
-			return err
-		}
-		session := &state.CollaborationSessions[index]
-		if err := ensureCollaborationAccessible(*session, user, now); err != nil {
-			return err
-		}
-		session.Messages = append(session.Messages, message)
-		// Persist only the newest messages once the room history reaches the cap so
-		// older messages are discarded first.
-		if len(session.Messages) > maxCollaborationMessages {
-			session.Messages = session.Messages[len(session.Messages)-maxCollaborationMessages:]
-		}
-		session.UpdatedAt = now
-		return nil
-	}); err != nil {
-		return CollaborationMessage{}, err
-	}
-	s.hub.publish(token, CollaborationRealtimeEvent{Type: "message.created", Payload: message, CreatedAt: now})
-	return message, nil
+func (s *Service) AddCollaborationMessage(token string, user User, input CollaborationMessageInput) (CollaborationMessage, error) {
+	return s.addCollaborationMessage(token, collaborationActorFromUser(user), input)
 }
 
 func (s *Service) RegisterCollaborationAttachment(token string, user User, attachment CollaborationAttachment) (CollaborationAttachment, error) {
@@ -588,7 +652,7 @@ func (s *Service) IssueCollaborationStreamToken(token string, user User) (string
 	if err != nil {
 		return "", err
 	}
-	if err := ensureCollaborationAccessible(session, user, now); err != nil {
+	if err := ensureCollaborationAccessibleActor(session, collaborationActorFromUser(user), now); err != nil {
 		return "", err
 	}
 	return s.hub.issueStreamToken(token, user.Username)
@@ -608,7 +672,7 @@ func (s *Service) SubscribeCollaboration(token, streamToken string) (<-chan Coll
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	if err := ensureCollaborationAccessible(session, user, time.Now().UTC()); err != nil {
+	if err := ensureCollaborationAccessibleActor(session, collaborationActorFromUser(user), time.Now().UTC()); err != nil {
 		return nil, nil, nil, err
 	}
 	ch, unsubscribe := s.hub.subscribe(token, username)
@@ -625,7 +689,7 @@ func (s *Service) PublishCollaborationSignal(token string, user User, payload ma
 	if err != nil {
 		return err
 	}
-	if err := ensureCollaborationAccessible(session, user, now); err != nil {
+	if err := ensureCollaborationAccessibleActor(session, collaborationActorFromUser(user), now); err != nil {
 		return err
 	}
 	message := make(map[string]interface{}, len(payload)+1)
@@ -681,43 +745,27 @@ func findCollaborationSessionIndex(sessions []CollaborationSession, token string
 }
 
 func ensureCollaborationAccessible(session CollaborationSession, user User, now time.Time) error {
-	if session.Status != CollaborationSessionActive {
-		return ErrCollaborationSessionClosed
-	}
-	if session.ExpiresAt != nil && !session.ExpiresAt.After(now) {
-		return ErrCollaborationSessionExpired
-	}
-	if canManageCollaboration(session, user) {
-		return nil
-	}
-	for _, allowed := range session.AllowedUsers {
-		if sameUsername(allowed, user.Username) {
-			return nil
-		}
-	}
-	return ErrCollaborationAccessDenied
+	return ensureCollaborationAccessibleActor(session, collaborationActorFromUser(user), now)
 }
 
 func ensureCollaborationManageable(session CollaborationSession, user User, now time.Time) error {
-	if session.ExpiresAt != nil && !session.ExpiresAt.After(now) {
-		return ErrCollaborationSessionExpired
-	}
-	if session.Status != CollaborationSessionActive {
-		return ErrCollaborationSessionClosed
-	}
-	if canManageCollaboration(session, user) {
-		return nil
-	}
-	return ErrCollaborationManageDenied
+	return ensureCollaborationManageableActor(session, collaborationActorFromUser(user), now)
 }
 
 func canManageCollaboration(session CollaborationSession, user User) bool {
-	return user.IsAdmin() || sameUsername(session.Creator, user.Username)
+	return canManageCollaborationActor(session, collaborationActorFromUser(user))
 }
 
 func sanitizeCollaborationSession(session CollaborationSession) CollaborationSession {
 	session.AllowedUsers = append([]string(nil), session.AllowedUsers...)
-	session.Messages = append([]CollaborationMessage(nil), session.Messages...)
+	if len(session.Messages) > 0 {
+		messages := make([]CollaborationMessage, len(session.Messages))
+		for i, message := range session.Messages {
+			messages[i] = sanitizeCollaborationMessage(message)
+		}
+		session.Messages = messages
+	}
+	session.ReadStates = append([]CollaborationReadState(nil), session.ReadStates...)
 	session.Attachments = append([]CollaborationAttachment(nil), session.Attachments...)
 	session.SharedFiles = append([]CollaborationFileRef(nil), session.SharedFiles...)
 	return session

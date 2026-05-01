@@ -155,7 +155,13 @@ func cloneCollaborationSessions(in []CollaborationSession) []CollaborationSessio
 	for i, session := range in {
 		out[i] = session
 		out[i].AllowedUsers = append([]string(nil), session.AllowedUsers...)
-		out[i].Messages = append([]CollaborationMessage(nil), session.Messages...)
+		if len(session.Messages) > 0 {
+			out[i].Messages = make([]CollaborationMessage, len(session.Messages))
+			for j, message := range session.Messages {
+				out[i].Messages[j] = sanitizeCollaborationMessage(message)
+			}
+		}
+		out[i].ReadStates = append([]CollaborationReadState(nil), session.ReadStates...)
 		out[i].Attachments = append([]CollaborationAttachment(nil), session.Attachments...)
 		out[i].SharedFiles = append([]CollaborationFileRef(nil), session.SharedFiles...)
 	}
