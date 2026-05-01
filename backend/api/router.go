@@ -52,6 +52,10 @@ func NewRouter(client *storage.Client, service *app.Service, cfg *config.Config)
 		v1.POST("/auth/sign-up", h.SignUp)
 		v1.POST("/auth/sign-in", h.SignIn)
 		v1.GET("/collaboration/sessions/:token/stream", h.StreamCollaboration)
+		v1.GET("/mobile/download-links/:token", h.GetMobileAppDownloadLink)
+		v1.GET("/mobile/download-links/:token/file", h.DownloadMobileAppBinary)
+		v1.POST("/mobile/download-links/:token/activate", h.ActivateMobileApp)
+		v1.POST("/mobile/installations/validate", h.ValidateMobileApp)
 
 		authenticated := v1.Group("/")
 		authenticated.Use(h.requireAuth())
@@ -116,6 +120,13 @@ func NewRouter(client *storage.Client, service *app.Service, cfg *config.Config)
 		authenticated.DELETE("/collaboration/sessions/:token/files/:fileId", h.DeleteCollaborationSharedFile)
 		authenticated.POST("/collaboration/sessions/:token/stream-token", h.CreateCollaborationStreamToken)
 		authenticated.POST("/collaboration/sessions/:token/signal", h.PublishCollaborationSignal)
+
+		authenticated.GET("/mobile/releases", h.requireAdmin(), h.ListMobileAppReleases)
+		authenticated.POST("/mobile/releases", h.requireAdmin(), h.CreateMobileAppRelease)
+		authenticated.POST("/mobile/releases/:id/revoke", h.requireAdmin(), h.RevokeMobileAppRelease)
+		authenticated.POST("/mobile/releases/:id/download-links", h.requireAdmin(), h.CreateMobileAppDownloadLink)
+		authenticated.GET("/mobile/releases/:id/installations", h.requireAdmin(), h.ListMobileAppInstallations)
+		authenticated.POST("/mobile/installations/:id/revoke", h.requireAdmin(), h.RevokeMobileAppInstallation)
 	}
 
 	return r

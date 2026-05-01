@@ -22,6 +22,10 @@
         <div class="brand-meta">
           <p>Browse buckets, move files, and share uploads from one quiet control surface.</p>
           <p>Keep bucket browsing, transfers, and upload sharing organized in one focused workspace.</p>
+          <div v-if="currentUser" class="nav-actions">
+            <el-button size="small" @click="router.push({ name: 'browser' })">Storage</el-button>
+            <el-button v-if="isAdmin" size="small" @click="router.push({ name: 'mobile-apps' })">Mobile Apps</el-button>
+          </div>
           <div v-if="currentUser" class="user-meta">
             <el-tag effect="plain">{{ currentUser.username }}</el-tag>
             <el-tag :type="currentUser.role === 'admin' ? 'danger' : 'info'">{{ currentUser.role }}</el-tag>
@@ -45,7 +49,7 @@ import { initializeAuth, signOutSession, useAuth } from './auth'
 
 const route = useRoute()
 const router = useRouter()
-const { state: authState, currentUser } = useAuth()
+const { state: authState, currentUser, isAdmin } = useAuth()
 const isStandalone = computed(() => !!route.meta?.standalone)
 
 onMounted(() => {
@@ -171,6 +175,12 @@ body,
   gap: 8px;
   font-size: 15px;
   line-height: 1.7;
+}
+
+.nav-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
 }
 
 .app-main {

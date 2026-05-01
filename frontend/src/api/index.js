@@ -155,3 +155,28 @@ export const createCollaborationStreamToken = (token) =>
 
 export const publishCollaborationSignal = (token, payload) =>
   api.post(`/collaboration/sessions/${encodeURIComponent(token)}/signal`, payload)
+
+export const listMobileAppReleases = () => api.get('/mobile/releases')
+
+export const createMobileAppRelease = (payload) => api.post('/mobile/releases', payload)
+
+export const revokeMobileAppRelease = (id) =>
+  api.post(`/mobile/releases/${encodeURIComponent(id)}/revoke`)
+
+export const createMobileAppDownloadLink = (id, payload) =>
+  api.post(`/mobile/releases/${encodeURIComponent(id)}/download-links`, payload)
+
+export const listMobileAppInstallations = (id) =>
+  api.get(`/mobile/releases/${encodeURIComponent(id)}/installations`)
+
+export const revokeMobileAppInstallation = (id) =>
+  api.post(`/mobile/installations/${encodeURIComponent(id)}/revoke`)
+
+export const getMobileAppDownloadLink = (token) =>
+  api.get(`/mobile/download-links/${encodeURIComponent(token)}`)
+
+export const activateMobileApp = (token, payload) =>
+  api.post(`/mobile/download-links/${encodeURIComponent(token)}/activate`, payload)
+
+export const validateMobileApp = (payload) =>
+  api.post('/mobile/installations/validate', payload)

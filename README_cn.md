@@ -11,6 +11,7 @@
 - ⬇️ 流式下载大文件——对象直接从 S3 传输到浏览器
 - 🔗 预签名 URL——生成无需凭证即可分享的限时下载或上传链接（过期时间可配置，默认 24 小时，最长 7 天）
 - 💬 协作会话——创建登录后可访问的在线协作链接，支持用户白名单、实时聊天、附件管理、S3 文件引用、语音输入和 WebRTC 视频信令
+- 📱 移动应用分发——登记存储在 S3 中的 Android/iOS 安装包，生成带有效期的下载页，并可撤销已激活设备
 - ➕ 创建 / 🗑️ 删除桶
 - 🗑️ 删除单个文件或整个文件夹（递归）
 - 🧰 批量下载、移动、重命名和删除文件/文件夹
@@ -148,6 +149,15 @@ npm run dev
 | POST | `/api/v1/collaboration/sessions/:token/stream-token` | 生成 SSE 实时流令牌 |
 | GET | `/api/v1/collaboration/sessions/:token/stream?streamToken=` | 通过 SSE 接收实时协作事件 |
 | POST | `/api/v1/collaboration/sessions/:token/signal` | 交换 WebRTC 信令数据 |
+| GET/POST | `/api/v1/mobile/releases` | 列出或创建移动应用发布记录（仅管理员） |
+| POST | `/api/v1/mobile/releases/:id/revoke` | 撤销一个移动应用发布及其已安装客户端（仅管理员） |
+| POST | `/api/v1/mobile/releases/:id/download-links` | 生成一个带有效期的移动应用下载页（仅管理员） |
+| GET | `/api/v1/mobile/releases/:id/installations` | 列出某个发布下已激活的移动设备（仅管理员） |
+| POST | `/api/v1/mobile/installations/:id/revoke` | 撤销单个已激活设备（仅管理员） |
+| GET | `/api/v1/mobile/download-links/:token` | 获取公开移动下载页元数据 |
+| GET | `/api/v1/mobile/download-links/:token/file` | 下载 Android/iOS 安装包 |
+| POST | `/api/v1/mobile/download-links/:token/activate` | 为一个已安装客户端激活启动校验令牌 |
+| POST | `/api/v1/mobile/installations/validate` | 校验移动客户端是否仍可启动 |
 
 ### 角色与权限模型
 
@@ -200,6 +210,13 @@ GET /api/v1/presign/upload/:bucket/*key?expiry=3600
 - 会话附件会隔离保存到所选桶下的 `.kipup/collaboration/<token>/attachments/` 前缀中，避免误删业务对象。
 - “共享文件”仅保存对现有 S3 对象的引用，不会复制原始文件。
 - 协作页提供文字聊天、浏览器语音转文字输入，以及基于 WebRTC 信令的摄像头/语音通话能力。
+
+### 移动应用分发
+
+- 管理员可在 `/mobile-apps` 页面中把已有 S3 对象登记为带过期时间的 Android/iOS 发布记录。
+- 每个下载页都会同时提供安装包下载按钮和 Flutter 客户端首启所需的激活码。
+- Flutter 移动端脚手架位于 `/mobile_app`，启动时会调用 `/api/v1/mobile/installations/validate` 做超时/撤销校验。
+- 当发布过期、被手动撤销，或关联协作会话关闭/过期时，移动端应阻止继续启动并清理本地状态。
 
 ## 许可证
 

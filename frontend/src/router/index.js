@@ -3,6 +3,8 @@ import Browser from '../views/Browser.vue'
 import AuthPage from '../views/AuthPage.vue'
 import UploadPage from '../views/UploadPage.vue'
 import CollaborationPage from '../views/CollaborationPage.vue'
+import MobileAppsPage from '../views/MobileAppsPage.vue'
+import MobileDownloadPage from '../views/MobileDownloadPage.vue'
 import { hasStoredToken, initializeAuth } from '../auth'
 
 const routes = [
@@ -12,7 +14,9 @@ const routes = [
   { path: '/browser/:bucket', component: Browser, name: 'bucket' },
   { path: '/browser/:bucket/:pathMatch(.*)*', component: Browser, name: 'folder' },
   { path: '/upload', component: UploadPage, name: 'upload', meta: { standalone: true, public: true } },
-  { path: '/collaboration/:token', component: CollaborationPage, name: 'collaboration' }
+  { path: '/collaboration/:token', component: CollaborationPage, name: 'collaboration' },
+  { path: '/mobile-apps', component: MobileAppsPage, name: 'mobile-apps' },
+  { path: '/mobile-download/:token', component: MobileDownloadPage, name: 'mobile-download', meta: { standalone: true, public: true } }
 ]
 
 const router = createRouter({

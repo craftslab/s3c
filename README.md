@@ -11,6 +11,7 @@
 - ⬇️ Streaming download of large files – objects are piped from S3 straight to the browser
 - 🔗 Presigned URLs – generate time-limited download or upload links shareable without credentials (configurable expiry, default 24 h, max 7 days)
 - 💬 Collaboration rooms – create login-protected collaboration links with user allowlists, live chat, attachments, shared S3 file references, voice input, and WebRTC video signaling
+- 📱 Mobile app distribution – register expiring Android/iOS packages stored in S3, generate hosted download pages, and revoke installed clients
 - ➕ Create / 🗑️ delete buckets
 - 🗑️ Delete individual files or entire folders (recursive)
 - 🧰 Batch download, move, rename, and delete for files/folders
@@ -153,6 +154,15 @@ All `/api/v1/*` routes except `/api/v1/auth/sign-up` and `/api/v1/auth/sign-in` 
 | POST | `/api/v1/collaboration/sessions/:token/stream-token` | Create an SSE stream token for realtime collaboration events |
 | GET | `/api/v1/collaboration/sessions/:token/stream?streamToken=` | Receive realtime room updates via SSE |
 | POST | `/api/v1/collaboration/sessions/:token/signal` | Exchange WebRTC signaling payloads |
+| GET/POST | `/api/v1/mobile/releases` | List or create mobile app release records (admin only) |
+| POST | `/api/v1/mobile/releases/:id/revoke` | Revoke a mobile app release and installed clients (admin only) |
+| POST | `/api/v1/mobile/releases/:id/download-links` | Generate an expiring hosted mobile download page (admin only) |
+| GET | `/api/v1/mobile/releases/:id/installations` | List activated mobile installations for a release (admin only) |
+| POST | `/api/v1/mobile/installations/:id/revoke` | Revoke one activated device (admin only) |
+| GET | `/api/v1/mobile/download-links/:token` | Get public mobile download page metadata |
+| GET | `/api/v1/mobile/download-links/:token/file` | Download the Android/iOS install package |
+| POST | `/api/v1/mobile/download-links/:token/activate` | Activate one installed mobile client and mint a startup validation token |
+| POST | `/api/v1/mobile/installations/validate` | Validate whether a mobile client can still start |
 
 ### Role and permission model
 
@@ -205,6 +215,13 @@ In the web UI, `Generate Download Link` now creates a shared page that can both 
 - Attachments are stored under an isolated `.kipup/collaboration/<token>/attachments/` prefix inside the selected bucket.
 - Shared S3 files are references to existing objects; adding them to a room does not copy the object.
 - The collaboration page provides text chat, browser voice-to-text input, and WebRTC signaling for camera/audio conversations.
+
+### Mobile distribution
+
+- Administrators can create expiring Android/iOS release records from existing S3 objects in the `/mobile-apps` admin page.
+- Each generated download page contains a direct package download button plus an activation code for the Flutter mobile client.
+- The Flutter scaffold lives in `/mobile_app` and validates startup access through `/api/v1/mobile/installations/validate`.
+- When a release expires, is revoked, or its linked collaboration room closes, the mobile client is expected to block startup and clear local state.
 
 ## License
 

@@ -150,12 +150,15 @@ type Session struct {
 }
 
 type State struct {
-	Tasks                 []Task                 `json:"tasks"`
-	History               []HistoryEntry         `json:"history"`
-	Policies              []CleanupPolicy        `json:"policies"`
-	Webhooks              []Webhook              `json:"webhooks"`
-	Deliveries            []WebhookDelivery      `json:"deliveries"`
-	Users                 []User                 `json:"users,omitempty"`
-	Sessions              []Session              `json:"sessions,omitempty"`
-	CollaborationSessions []CollaborationSession `json:"collaborationSessions,omitempty"`
+	Tasks                  []Task                  `json:"tasks"`
+	History                []HistoryEntry          `json:"history"`
+	Policies               []CleanupPolicy         `json:"policies"`
+	Webhooks               []Webhook               `json:"webhooks"`
+	Deliveries             []WebhookDelivery       `json:"deliveries"`
+	Users                  []User                  `json:"users,omitempty"`
+	Sessions               []Session               `json:"sessions,omitempty"`
+	CollaborationSessions  []CollaborationSession  `json:"collaborationSessions,omitempty"`
+	MobileAppReleases      []MobileAppRelease      `json:"mobileAppReleases,omitempty"`
+	MobileAppDownloadLinks []MobileAppDownloadLink `json:"mobileAppDownloadLinks,omitempty"`
+	MobileAppInstallations []MobileAppInstallation `json:"mobileAppInstallations,omitempty"`
 }

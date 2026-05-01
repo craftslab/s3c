@@ -70,14 +70,17 @@ func (s *Store) saveLocked() error {
 
 func cloneState(in State) State {
 	out := State{
-		Tasks:                 cloneTasks(in.Tasks),
-		History:               cloneHistory(in.History),
-		Policies:              append([]CleanupPolicy(nil), in.Policies...),
-		Webhooks:              cloneWebhooks(in.Webhooks),
-		Deliveries:            cloneDeliveries(in.Deliveries),
-		Users:                 cloneUsers(in.Users),
-		Sessions:              append([]Session(nil), in.Sessions...),
-		CollaborationSessions: cloneCollaborationSessions(in.CollaborationSessions),
+		Tasks:                  cloneTasks(in.Tasks),
+		History:                cloneHistory(in.History),
+		Policies:               append([]CleanupPolicy(nil), in.Policies...),
+		Webhooks:               cloneWebhooks(in.Webhooks),
+		Deliveries:             cloneDeliveries(in.Deliveries),
+		Users:                  cloneUsers(in.Users),
+		Sessions:               append([]Session(nil), in.Sessions...),
+		CollaborationSessions:  cloneCollaborationSessions(in.CollaborationSessions),
+		MobileAppReleases:      cloneMobileAppReleases(in.MobileAppReleases),
+		MobileAppDownloadLinks: cloneMobileAppDownloadLinks(in.MobileAppDownloadLinks),
+		MobileAppInstallations: cloneMobileAppInstallations(in.MobileAppInstallations),
 	}
 	return out
 }
@@ -156,6 +159,33 @@ func cloneCollaborationSessions(in []CollaborationSession) []CollaborationSessio
 		out[i].Attachments = append([]CollaborationAttachment(nil), session.Attachments...)
 		out[i].SharedFiles = append([]CollaborationFileRef(nil), session.SharedFiles...)
 	}
+	return out
+}
+
+func cloneMobileAppReleases(in []MobileAppRelease) []MobileAppRelease {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]MobileAppRelease, len(in))
+	copy(out, in)
+	return out
+}
+
+func cloneMobileAppDownloadLinks(in []MobileAppDownloadLink) []MobileAppDownloadLink {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]MobileAppDownloadLink, len(in))
+	copy(out, in)
+	return out
+}
+
+func cloneMobileAppInstallations(in []MobileAppInstallation) []MobileAppInstallation {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]MobileAppInstallation, len(in))
+	copy(out, in)
 	return out
 }
 
